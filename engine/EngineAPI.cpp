@@ -96,3 +96,72 @@ bool EngineAPI::select_all(const std::string& table_name) {
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
     return StorageEngine::select_all(table_path);
 }
+
+bool EngineAPI::drop_table(const std::string& table_name) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    const bool ok = StorageEngine::drop_table(table_path);
+    if (!ok) {
+        return false;
+    }
+
+    const int count = storage.read_table_count(meta_path);
+    if (count > 0) {
+        storage.update_table_count(meta_path, count - 1);
+    }
+    return true;
+}
+
+bool EngineAPI::truncate_table(const std::string& table_name) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    return StorageEngine::truncate_table(table_path);
+}
+
+bool EngineAPI::alter_add_column(const std::string& table_name, const std::string& column_name, int type, int size) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    return StorageEngine::alter_add_column(table_path, column_name, type, size);
+}
+
+bool EngineAPI::alter_drop_column(const std::string& table_name, const std::string& column_name) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    return StorageEngine::alter_drop_column(table_path, column_name);
+}

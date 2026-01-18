@@ -7,6 +7,18 @@
 
 using std::string;
 
+namespace {
+struct Column {
+    std::string name;
+    int type;
+    int size;
+};
+
+constexpr int TYPE_INT = 1;
+constexpr int TYPE_VARCHAR = 2;
+constexpr int TYPE_DATE = 3;
+}
+
 void StorageEngine::create_database_file(const string& path) {
     std::ofstream file(path, std::ios::binary);
 
@@ -286,7 +298,6 @@ bool StorageEngine::insert_row(const std::string& table_path, const std::vector<
             }
             file.write(reinterpret_cast<const char*>(&int_value), sizeof(int_value));
         } else if (type == TYPE_DATE) {
-            // strip optional quotes
             if (v.size() >= 2 && ((v.front() == '"' && v.back() == '"') || (v.front() == '\'' && v.back() == '\''))) {
                 v = v.substr(1, v.size() - 2);
                 v = trimCopy(v);
@@ -442,5 +453,410 @@ bool StorageEngine::select_all(const std::string& table_path) {
     }
     printBorder(widths);
     std::cout << row_count << " row" << (row_count == 1 ? "" : "s") << " in set\n";
+    return true;
+}
+
+bool StorageEngine::drop_table(const std::string& table_path) {
+    if(!std::filesystem::exists(table_path)) {
+        return false;
+    }
+
+    std::error_code ec;
+    return std::filesystem::remove(table_path, ec);
+}
+
+bool StorageEngine::truncate_table(const std::string& table_path) {
+    std::ifstream in(table_path, std::ios::binary);
+    if (!in) {
+        return false;
+    }
+
+    char magic[8];
+    in.read(magic, 8);
+    if (in.gcount() != 8 || std::string(magic, 8) != "CROWNTBL") {
+        return false;
+    }
+
+    int column_count = 0;
+    int row_count = 0;
+    in.read(reinterpret_cast<char*>(&column_count), sizeof(int));
+    in.read(reinterpret_cast<char*>(&row_count), sizeof(int));
+    if (column_count <= 0) {
+        return false;
+    }
+
+    struct ColSchema { std::string name; int type; int size; };
+    std::vector<ColSchema> schema;
+    schema.reserve(static_cast<size_t>(column_count));
+
+    for (int i = 0; i < column_count; i++) {
+        int name_length = 0;
+        in.read(reinterpret_cast<char*>(&name_length), sizeof(int));
+        if (name_length <= 0) return false;
+        std::string name(static_cast<size_t>(name_length), '\0');
+        in.read(&name[0], name_length);
+        int type = 0;
+        int size = 0;
+        in.read(reinterpret_cast<char*>(&type), sizeof(int));
+        in.read(reinterpret_cast<char*>(&size), sizeof(int));
+        schema.push_back({std::move(name), type, size});
+    }
+    in.close();
+
+    std::ofstream out(table_path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+
+    out.write("CROWNTBL", 8);
+    out.write(reinterpret_cast<const char*>(&column_count), sizeof(int));
+    const int zero_row_count = 0;
+    out.write(reinterpret_cast<const char*>(&zero_row_count), sizeof(int));
+
+    for (const auto& c : schema) {
+        const int name_length = static_cast<int>(c.name.size());
+        out.write(reinterpret_cast<const char*>(&name_length), sizeof(int));
+        out.write(c.name.c_str(), name_length);
+        out.write(reinterpret_cast<const char*>(&c.type), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&c.size), sizeof(int));
+    }
+
+    return true;
+}
+
+bool StorageEngine::alter_add_column(const std::string& tablePath, const std::string& colName, int type, int size) {
+    std::ifstream in(tablePath, std::ios::binary);
+    if (!in) {
+        return false;
+    }
+
+    char magic[8];
+    in.read(magic, 8);
+    if (in.gcount() != 8 || std::string(magic, 8) != "CROWNTBL") {
+        return false;
+    }
+
+    int colCount = 0;
+    int rowCount = 0;
+    in.read(reinterpret_cast<char*>(&colCount), sizeof(int));
+    in.read(reinterpret_cast<char*>(&rowCount), sizeof(int));
+    if (colCount <= 0 || rowCount < 0) {
+        return false;
+    }
+
+    std::vector<Column> cols;
+    cols.reserve(static_cast<size_t>(colCount) + 1);
+    for (int i = 0; i < colCount; i++) {
+        int len = 0;
+        in.read(reinterpret_cast<char*>(&len), sizeof(int));
+        if (len <= 0) return false;
+        std::string name(static_cast<size_t>(len), '\0');
+        in.read(&name[0], len);
+        int t = 0;
+        int s = 0;
+        in.read(reinterpret_cast<char*>(&t), sizeof(int));
+        in.read(reinterpret_cast<char*>(&s), sizeof(int));
+        cols.push_back({std::move(name), t, s});
+    }
+
+    const Column newCol{colName, type, size};
+    const std::string tmpPath = tablePath + ".tmp";
+    std::ofstream out(tmpPath, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+
+    out.write("CROWNTBL", 8);
+    const int newColCount = colCount + 1;
+    out.write(reinterpret_cast<const char*>(&newColCount), sizeof(int));
+    out.write(reinterpret_cast<const char*>(&rowCount), sizeof(int));
+
+    for (const auto& c : cols) {
+        const int l = static_cast<int>(c.name.size());
+        out.write(reinterpret_cast<const char*>(&l), sizeof(int));
+        out.write(c.name.c_str(), l);
+        out.write(reinterpret_cast<const char*>(&c.type), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&c.size), sizeof(int));
+    }
+    {
+        const int l = static_cast<int>(newCol.name.size());
+        out.write(reinterpret_cast<const char*>(&l), sizeof(int));
+        out.write(newCol.name.c_str(), l);
+        out.write(reinterpret_cast<const char*>(&newCol.type), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&newCol.size), sizeof(int));
+    }
+
+    for (int r = 0; r < rowCount; r++) {
+        for (int c = 0; c < colCount; c++) {
+            const auto& col = cols[static_cast<size_t>(c)];
+            if (col.type == TYPE_INT || col.type == TYPE_DATE) {
+                int v = 0;
+                in.read(reinterpret_cast<char*>(&v), sizeof(int));
+                out.write(reinterpret_cast<const char*>(&v), sizeof(int));
+            } else if (col.type == TYPE_VARCHAR) {
+                int l = 0;
+                in.read(reinterpret_cast<char*>(&l), sizeof(int));
+                if (l < 0) return false;
+                std::string s(static_cast<size_t>(l), '\0');
+                if (l > 0) {
+                    in.read(&s[0], l);
+                }
+                out.write(reinterpret_cast<const char*>(&l), sizeof(int));
+                if (l > 0) {
+                    out.write(s.data(), l);
+                }
+            } else {
+                return false;
+            }
+        }
+        if (newCol.type == TYPE_INT || newCol.type == TYPE_DATE) {
+            const int zero = 0;
+            out.write(reinterpret_cast<const char*>(&zero), sizeof(int));
+        } else if (newCol.type == TYPE_VARCHAR) {
+            const int l = 0;
+            out.write(reinterpret_cast<const char*>(&l), sizeof(int));
+        } else {
+            return false;
+        }
+    }
+
+    out.close();
+    in.close();
+
+    std::error_code ec;
+    std::filesystem::remove(tablePath, ec);
+    ec.clear();
+    std::filesystem::rename(tmpPath, tablePath, ec);
+    if (ec) {
+        std::filesystem::remove(tmpPath, ec);
+        return false;
+    }
+    return true;
+}
+
+bool StorageEngine::alter_drop_column(
+    const std::string& tablePath,
+    const std::string& colName
+) {
+    std::ifstream in(tablePath, std::ios::binary);
+    if (!in) {
+        return false;
+    }
+
+    char magic[8];
+    in.read(magic, 8);
+    if (in.gcount() != 8 || std::string(magic, 8) != "CROWNTBL") {
+        return false;
+    }
+
+    int colCount = 0;
+    int rowCount = 0;
+    in.read(reinterpret_cast<char*>(&colCount), sizeof(int));
+    in.read(reinterpret_cast<char*>(&rowCount), sizeof(int));
+    if (colCount <= 0 || rowCount < 0) {
+        return false;
+    }
+
+    std::vector<Column> cols;
+    cols.reserve(static_cast<size_t>(colCount));
+    int dropIndex = -1;
+    for (int i = 0; i < colCount; i++) {
+        int len = 0;
+        in.read(reinterpret_cast<char*>(&len), sizeof(int));
+        if (len <= 0) return false;
+        std::string name(static_cast<size_t>(len), '\0');
+        in.read(&name[0], len);
+        int t = 0;
+        int s = 0;
+        in.read(reinterpret_cast<char*>(&t), sizeof(int));
+        in.read(reinterpret_cast<char*>(&s), sizeof(int));
+        if (name == colName) dropIndex = i;
+        cols.push_back({std::move(name), t, s});
+    }
+
+    if (dropIndex < 0 || dropIndex >= colCount) {
+        return false;
+    }
+    if (colCount == 1) {
+        return false;
+    }
+
+    const std::string tmpPath = tablePath + ".tmp";
+    std::ofstream out(tmpPath, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+
+    out.write("CROWNTBL", 8);
+    const int newColCount = colCount - 1;
+    out.write(reinterpret_cast<const char*>(&newColCount), sizeof(int));
+    out.write(reinterpret_cast<const char*>(&rowCount), sizeof(int));
+
+    for (int i = 0; i < colCount; i++) {
+        if (i == dropIndex) continue;
+        const auto& c = cols[static_cast<size_t>(i)];
+        const int l = static_cast<int>(c.name.size());
+        out.write(reinterpret_cast<const char*>(&l), sizeof(int));
+        out.write(c.name.c_str(), l);
+        out.write(reinterpret_cast<const char*>(&c.type), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&c.size), sizeof(int));
+    }
+
+    for (int r = 0; r < rowCount; r++) {
+        for (int i = 0; i < colCount; i++) {
+            const auto& c = cols[static_cast<size_t>(i)];
+            if (c.type == TYPE_INT || c.type == TYPE_DATE) {
+                int v = 0;
+                in.read(reinterpret_cast<char*>(&v), sizeof(int));
+                if (i != dropIndex) {
+                    out.write(reinterpret_cast<const char*>(&v), sizeof(int));
+                }
+            } else if (c.type == TYPE_VARCHAR) {
+                int l = 0;
+                in.read(reinterpret_cast<char*>(&l), sizeof(int));
+                if (l < 0) return false;
+                std::string s(static_cast<size_t>(l), '\0');
+                if (l > 0) {
+                    in.read(&s[0], l);
+                }
+                if (i != dropIndex) {
+                    out.write(reinterpret_cast<const char*>(&l), sizeof(int));
+                    if (l > 0) {
+                        out.write(s.data(), l);
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+    }
+
+    out.close();
+    in.close();
+
+    std::error_code ec;
+    std::filesystem::remove(tablePath, ec);
+    ec.clear();
+    std::filesystem::rename(tmpPath, tablePath, ec);
+    if (ec) {
+        std::filesystem::remove(tmpPath, ec);
+        return false;
+    }
+    return true;
+}
+
+bool compare_int(int a, const std::string& op, int b) {
+    if(op == "=") return a == b;
+    if(op == "!=") return a != b;
+    if(op == "<") return a < b;
+    if(op == "<=") return a <= b;
+    if(op == ">") return a > b;
+    if(op == ">=") return a >= b;
+    return false;
+}
+
+bool compare_string(const std::string& a, const std::string& op, const std::string& b) {
+    if(op == "=") return a == b;
+    if(op == "!=") return a != b;
+}
+
+bool compareInt(int a, const std::string& op, int b) {
+    if (op == "=") return a == b;
+    if (op == "!=") return a != b;
+    if (op == ">") return a > b;
+    if (op == "<") return a < b;
+    if (op == ">=") return a >= b;
+    if (op == "<=") return a <= b;
+    return false;
+}
+
+bool compareString(const std::string& a, const std::string& op, const std::string& b) {
+    if (op == "=") return a == b;
+    if (op == "!=") return a != b;
+    return false;
+}
+
+bool StorageEngine::select_where(
+    const std::string& tablePath,
+    const Condition& cond
+) {
+    std::ifstream file(tablePath, std::ios::binary);
+    if (!file) {
+        std::cerr << "Table not found\n";
+        return false;
+    }
+
+    char magic[8];
+    int colCount, rowCount;
+    file.read(magic, 8);
+    file.read((char*)&colCount, sizeof(int));
+    file.read((char*)&rowCount, sizeof(int));
+
+    if (std::string(magic, 8) != "CROWNTBL") {
+        std::cerr << "Invalid table\n";
+        return false;
+    }
+
+    std::vector<Column> cols;
+    int whereIndex = -1;
+
+    for (int i = 0; i < colCount; i++) {
+        int l;
+        file.read((char*)&l, sizeof(int));
+        std::string name(l, '\0');
+        file.read(&name[0], l);
+
+        int t, s;
+        file.read((char*)&t, sizeof(int));
+        file.read((char*)&s, sizeof(int));
+
+        if (name == cond.column)
+            whereIndex = i;
+
+        cols.push_back({name, t, s});
+    }
+
+    if (whereIndex == -1) {
+        std::cerr << "Column not found\n";
+        return false;
+    }
+
+    for (auto& c : cols)
+        std::cout << c.name << "\t";
+    std::cout << "\n----------------------------\n";
+
+    for (int r = 0; r < rowCount; r++) {
+        std::vector<std::string> row;
+        bool match = false;
+
+        for (int c = 0; c < colCount; c++) {
+            if (cols[c].type == TYPE_INT) {
+                int v;
+                file.read((char*)&v, sizeof(int));
+                row.push_back(std::to_string(v));
+
+                if (c == whereIndex)
+                    match = compareInt(v, cond.op, std::stoi(cond.value));
+            }
+            else {
+                int l;
+                file.read((char*)&l, sizeof(int));
+                std::string s(l, '\0');
+                file.read(&s[0], l);
+                row.push_back(s);
+
+                if (c == whereIndex)
+                    match = compareString(s, cond.op, cond.value);
+            }
+        }
+
+        if (match) {
+            for (auto& v : row)
+                std::cout << v << "\t";
+            std::cout << "\n";
+        }
+    }
+
+    file.close();
     return true;
 }

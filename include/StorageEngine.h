@@ -4,6 +4,12 @@
 #include <utility>
 #include <vector>
 
+struct Condition{
+    std::string column_name;
+    std::string op;
+    std::string value;
+};
+
 class StorageEngine {
     public:
     void create_database_file(const std::string& path);
@@ -14,6 +20,11 @@ class StorageEngine {
     bool createTable(const std::string& db_path, const std::string& table_name, const std::vector<std::pair<std::string, int>>& columns);
     static bool insert_row(const std::string& table_path, const std::vector<std::string>& values);
     static bool select_all(const std::string& table_path);
+    static bool drop_table(const std::string& table_path);
+    static bool truncate_table(const std::string& table_path);
+    static bool alter_add_column(const std::string& table_path, const std::string& column_name, int type, int size);
+    static bool alter_drop_column(const std::string& table_path, const std::string& column_name);
+    static bool select_where(const std::string& table_path, const Condition& cond);
 };
 
 #endif

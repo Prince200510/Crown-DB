@@ -5,7 +5,7 @@
 
 namespace SQLParser {
 
-enum class TokType {
+enum class TokenType {
 	Identifier,
 	Number,
 	String,
@@ -15,11 +15,28 @@ enum class TokType {
 	RParen,
 	Semicolon,
 	Dash,
-	End
+	End,
+	CREATE,
+	DATABASE,
+	DROP,
+	TABLE,
+	USE,
+	INSERT,
+	INTO,
+	VALUES,
+	SELECT,
+	FROM,
+	TRUNCATE,
+	ALTER,
+	ADD,
+	COLUMN,
+	INT,
+	VARCHAR,
+	DATE
 };
 
 struct Token {
-	TokType type;
+	TokenType type;
 	std::string text;
 };
 
@@ -39,8 +56,29 @@ static std::string trimCopy(std::string s) {
 static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 	std::vector<Token> out;
 	size_t i = 0;
-	auto push = [&](TokType t, std::string v) {
+	auto push = [&](TokenType t, std::string v) {
 		out.push_back({t, std::move(v)});
+	};
+
+	auto keywordToTokenType = [&](const std::string& upperIdent) -> TokenType {
+		if (upperIdent == "CREATE") return TokenType::CREATE;
+		if (upperIdent == "DATABASE") return TokenType::DATABASE;
+		if (upperIdent == "DROP") return TokenType::DROP;
+		if (upperIdent == "TABLE") return TokenType::TABLE;
+		if (upperIdent == "USE") return TokenType::USE;
+		if (upperIdent == "INSERT") return TokenType::INSERT;
+		if (upperIdent == "INTO") return TokenType::INTO;
+		if (upperIdent == "VALUES") return TokenType::VALUES;
+		if (upperIdent == "SELECT") return TokenType::SELECT;
+		if (upperIdent == "FROM") return TokenType::FROM;
+		if (upperIdent == "TRUNCATE") return TokenType::TRUNCATE;
+		if (upperIdent == "ALTER") return TokenType::ALTER;
+		if (upperIdent == "ADD") return TokenType::ADD;
+		if (upperIdent == "COLUMN") return TokenType::COLUMN;
+		if (upperIdent == "INT") return TokenType::INT;
+		if (upperIdent == "VARCHAR") return TokenType::VARCHAR;
+		if (upperIdent == "DATE") return TokenType::DATE;
+		return TokenType::Identifier;
 	};
 
 	while (i < sql.size()) {
@@ -58,7 +96,8 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 				if (!(std::isalnum(c) || c == '_')) break;
 				++i;
 			}
-			push(TokType::Identifier, sql.substr(start, i - start));
+			std::string ident = sql.substr(start, i - start);
+			push(keywordToTokenType(upper(ident)), std::move(ident));
 			continue;
 		}
 
@@ -66,7 +105,7 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 			size_t start = i;
 			++i;
 			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
-			push(TokType::Number, sql.substr(start, i - start));
+			push(TokenType::Number, sql.substr(start, i - start));
 			continue;
 		}
 
@@ -83,70 +122,64 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 				value.push_back(c);
 				++i;
 			}
-			push(TokType::String, value);
+			push(TokenType::String, value);
 			continue;
 		}
 
 		switch (sql[i]) {
-			case '*': push(TokType::Star, "*"); ++i; break;
-			case ',': push(TokType::Comma, ","); ++i; break;
-			case '(': push(TokType::LParen, "("); ++i; break;
-			case ')': push(TokType::RParen, ")"); ++i; break;
-			case ';': push(TokType::Semicolon, ";"); ++i; break;
-			case '-': push(TokType::Dash, "-"); ++i; break;
+			case '*': push(TokenType::Star, "*"); ++i; break;
+			case ',': push(TokenType::Comma, ","); ++i; break;
+			case '(': push(TokenType::LParen, "("); ++i; break;
+			case ')': push(TokenType::RParen, ")"); ++i; break;
+			case ';': push(TokenType::Semicolon, ";"); ++i; break;
+			case '-': push(TokenType::Dash, "-"); ++i; break;
 			default:
 				error = "Unexpected character in SQL";
 				return {};
 		}
 	}
 
-	push(TokType::End, "");
+	push(TokenType::End, "");
 	return out;
 }
 
-static bool matchKeyword(const Token& t, const char* kw) {
-	if (t.type != TokType::Identifier) return false;
-	return upper(t.text) == kw;
-}
-
-static bool expect(const std::vector<Token>& toks, size_t& pos, TokType type) {
+static bool expect(const std::vector<Token>& toks, size_t& pos, TokenType type) {
 	if (toks[pos].type != type) return false;
 	++pos;
 	return true;
 }
 
 static bool parseIdentifier(const std::vector<Token>& toks, size_t& pos, std::string& out) {
-	if (toks[pos].type != TokType::Identifier) return false;
+	if (toks[pos].type != TokenType::Identifier) return false;
 	out = toks[pos].text;
 	++pos;
 	return true;
 }
 
 static bool parseTypeSpec(const std::vector<Token>& toks, size_t& pos, int& outType) {
-	if (toks[pos].type != TokType::Identifier) return false;
-	const std::string t = upper(toks[pos].text);
-	++pos;
-
 	constexpr int TYPE_INT = 1;
 	constexpr int TYPE_VARCHAR = 2;
 	constexpr int TYPE_DATE = 3;
 
-	if (t == "INT") {
+	if (toks[pos].type == TokenType::INT) {
+		++pos;
 		outType = TYPE_INT;
 		return true;
 	}
-	if (t == "DATE") {
+	if (toks[pos].type == TokenType::DATE) {
+		++pos;
 		outType = TYPE_DATE;
 		return true;
 	}
-	if (t == "VARCHAR") {
+	if (toks[pos].type == TokenType::VARCHAR) {
+		++pos;
 		int len = 255;
-		if (toks[pos].type == TokType::LParen) {
+		if (toks[pos].type == TokenType::LParen) {
 			++pos;
-			if (toks[pos].type != TokType::Number) return false;
+			if (toks[pos].type != TokenType::Number) return false;
 			len = std::stoi(toks[pos].text);
 			++pos;
-			if (!expect(toks, pos, TokType::RParen)) return false;
+			if (!expect(toks, pos, TokenType::RParen)) return false;
 		}
 		if (len <= 0) return false;
 		outType = TYPE_VARCHAR | (len << 16);
@@ -156,17 +189,43 @@ static bool parseTypeSpec(const std::vector<Token>& toks, size_t& pos, int& outT
 }
 
 static bool parseValue(const std::vector<Token>& toks, size_t& pos, std::string& out) {
-	if (toks[pos].type == TokType::String) {
+	auto isBareWord = [](TokenType t) {
+		switch (t) {
+			case TokenType::Identifier:
+			case TokenType::CREATE:
+			case TokenType::DATABASE:
+			case TokenType::DROP:
+			case TokenType::TABLE:
+			case TokenType::USE:
+			case TokenType::INSERT:
+			case TokenType::INTO:
+			case TokenType::VALUES:
+			case TokenType::SELECT:
+			case TokenType::FROM:
+			case TokenType::TRUNCATE:
+			case TokenType::ALTER:
+			case TokenType::ADD:
+			case TokenType::COLUMN:
+			case TokenType::INT:
+			case TokenType::VARCHAR:
+			case TokenType::DATE:
+				return true;
+			default:
+				return false;
+		}
+	};
+
+	if (toks[pos].type == TokenType::String) {
 		out = toks[pos].text;
 		++pos;
 		return true;
 	}
 
-	if (toks[pos].type == TokType::Number) {
+	if (toks[pos].type == TokenType::Number) {
 		const std::string a = toks[pos].text;
 		size_t p = pos;
 		++p;
-		if (toks[p].type == TokType::Dash && toks[p + 1].type == TokType::Number && toks[p + 2].type == TokType::Dash && toks[p + 3].type == TokType::Number) {
+		if (toks[p].type == TokenType::Dash && toks[p + 1].type == TokenType::Number && toks[p + 2].type == TokenType::Dash && toks[p + 3].type == TokenType::Number) {
 			out = a + "-" + toks[p + 1].text + "-" + toks[p + 3].text;
 			pos = p + 4;
 			return true;
@@ -176,7 +235,7 @@ static bool parseValue(const std::vector<Token>& toks, size_t& pos, std::string&
 		return true;
 	}
 
-	if (toks[pos].type == TokType::Identifier) {
+	if (isBareWord(toks[pos].type)) {
 		out = toks[pos].text;
 		++pos;
 		return true;
@@ -196,23 +255,23 @@ ParseResult parse(const std::string& sql) {
 	}
 
 	size_t pos = 0;
-	while (toks[pos].type != TokType::End && toks[pos].type != TokType::Semicolon) {
+	while (toks[pos].type != TokenType::End && toks[pos].type != TokenType::Semicolon) {
 		break;
 	}
 
-	if (toks.back().type != TokType::End) {
-		toks.push_back({TokType::End, ""});
+	if (toks.back().type != TokenType::End) {
+		toks.push_back({TokenType::End, ""});
 	}
 
-	if (toks.size() < 2 || toks[toks.size() - 2].type != TokType::Semicolon) {
+	if (toks.size() < 2 || toks[toks.size() - 2].type != TokenType::Semicolon) {
 		r.ok = false;
 		r.error = "Statement must end with ';'";
 		return r;
 	}
 
-	if (matchKeyword(toks[pos], "CREATE")) {
+	if (toks[pos].type == TokenType::CREATE) {
 		++pos;
-		if (matchKeyword(toks[pos], "DATABASE")) {
+		if (toks[pos].type == TokenType::DATABASE) {
 			++pos;
 			std::string db;
 			if (!parseIdentifier(toks, pos, db)) {
@@ -225,7 +284,7 @@ ParseResult parse(const std::string& sql) {
 			r.ok = true;
 			return r;
 		}
-		if (matchKeyword(toks[pos], "TABLE")) {
+		if (toks[pos].type == TokenType::TABLE) {
 			++pos;
 			std::string table;
 			if (!parseIdentifier(toks, pos, table)) {
@@ -233,7 +292,7 @@ ParseResult parse(const std::string& sql) {
 				r.error = "Expected table name";
 				return r;
 			}
-			if (!expect(toks, pos, TokType::LParen)) {
+			if (!expect(toks, pos, TokenType::LParen)) {
 				r.ok = false;
 				r.error = "Expected '('";
 				return r;
@@ -253,13 +312,13 @@ ParseResult parse(const std::string& sql) {
 					return r;
 				}
 				cols.push_back({colName, type});
-				if (toks[pos].type == TokType::Comma) {
+				if (toks[pos].type == TokenType::Comma) {
 					++pos;
 					continue;
 				}
 				break;
 			}
-			if (!expect(toks, pos, TokType::RParen)) {
+			if (!expect(toks, pos, TokenType::RParen)) {
 				r.ok = false;
 				r.error = "Expected ')'";
 				return r;
@@ -272,27 +331,40 @@ ParseResult parse(const std::string& sql) {
 		}
 	}
 
-	if (matchKeyword(toks[pos], "DROP")) {
+	if (toks[pos].type == TokenType::DROP) {
 		++pos;
-		if (!matchKeyword(toks[pos], "DATABASE")) {
-			r.ok = false;
-			r.error = "Expected DATABASE";
+		if (toks[pos].type == TokenType::DATABASE) {
+			++pos;
+			std::string db;
+			if (!parseIdentifier(toks, pos, db)) {
+				r.ok = false;
+				r.error = "Expected database name";
+				return r;
+			}
+			r.statement.type = StatementType::DropDatabase;
+			r.statement.databaseName = db;
+			r.ok = true;
 			return r;
 		}
-		++pos;
-		std::string db;
-		if (!parseIdentifier(toks, pos, db)) {
-			r.ok = false;
-			r.error = "Expected database name";
+		if (toks[pos].type == TokenType::TABLE) {
+			++pos;
+			std::string table;
+			if (!parseIdentifier(toks, pos, table)) {
+				r.ok = false;
+				r.error = "Expected table name";
+				return r;
+			}
+			r.statement.type = StatementType::DropTable;
+			r.statement.tableName = table;
+			r.ok = true;
 			return r;
 		}
-		r.statement.type = StatementType::DropDatabase;
-		r.statement.databaseName = db;
-		r.ok = true;
+		r.ok = false;
+		r.error = "Expected DATABASE or TABLE";
 		return r;
 	}
 
-	if (matchKeyword(toks[pos], "USE")) {
+	if (toks[pos].type == TokenType::USE) {
 		++pos;
 		std::string db;
 		if (!parseIdentifier(toks, pos, db)) {
@@ -306,9 +378,92 @@ ParseResult parse(const std::string& sql) {
 		return r;
 	}
 
-	if (matchKeyword(toks[pos], "INSERT")) {
+	if (toks[pos].type == TokenType::TRUNCATE) {
 		++pos;
-		if (!matchKeyword(toks[pos], "INTO")) {
+		if (toks[pos].type != TokenType::TABLE) {
+			r.ok = false;
+			r.error = "Expected TABLE";
+			return r;
+		}
+		++pos;
+		std::string table;
+		if (!parseIdentifier(toks, pos, table)) {
+			r.ok = false;
+			r.error = "Expected table name";
+			return r;
+		}
+		r.statement.type = StatementType::TruncateTable;
+		r.statement.tableName = table;
+		r.ok = true;
+		return r;
+	}
+
+	if (toks[pos].type == TokenType::ALTER) {
+		++pos;
+		if (toks[pos].type != TokenType::TABLE) {
+			r.ok = false;
+			r.error = "Expected TABLE";
+			return r;
+		}
+		++pos;
+		std::string table;
+		if (!parseIdentifier(toks, pos, table)) {
+			r.ok = false;
+			r.error = "Expected table name";
+			return r;
+		}
+
+		if (toks[pos].type == TokenType::ADD) {
+			++pos;
+			if (toks[pos].type == TokenType::COLUMN) {
+				++pos;
+			}
+			std::string col;
+			if (!parseIdentifier(toks, pos, col)) {
+				r.ok = false;
+				r.error = "Expected column name";
+				return r;
+			}
+			int type = 0;
+			if (!parseTypeSpec(toks, pos, type)) {
+				r.ok = false;
+				r.error = "Invalid column type";
+				return r;
+			}
+			r.statement.type = StatementType::AlterAddColumn;
+			r.statement.tableName = table;
+			r.statement.columnName = col;
+			r.statement.columnType = type;
+			r.ok = true;
+			return r;
+		}
+
+		if (toks[pos].type == TokenType::DROP) {
+			++pos;
+			if (toks[pos].type == TokenType::COLUMN) {
+				++pos;
+			}
+			std::string col;
+			if (!parseIdentifier(toks, pos, col)) {
+				r.ok = false;
+				r.error = "Expected column name";
+				return r;
+			}
+			r.statement.type = StatementType::AlterDropColumn;
+			r.statement.tableName = table;
+			r.statement.columnName = col;
+			r.ok = true;
+			return r;
+		}
+
+		r.ok = false;
+		r.error = "Expected ADD or DROP";
+		return r;
+	}
+
+	if (toks[pos].type == TokenType::INSERT) {
+		++pos;
+		if (toks[pos].type != TokenType::INTO) {
 			r.ok = false;
 			r.error = "Expected INTO";
 			return r;
@@ -320,13 +475,13 @@ ParseResult parse(const std::string& sql) {
 			r.error = "Expected table name";
 			return r;
 		}
-		if (!matchKeyword(toks[pos], "VALUES")) {
+		if (toks[pos].type != TokenType::VALUES) {
 			r.ok = false;
 			r.error = "Expected VALUES";
 			return r;
 		}
 		++pos;
-		if (!expect(toks, pos, TokType::LParen)) {
+		if (!expect(toks, pos, TokenType::LParen)) {
 			r.ok = false;
 			r.error = "Expected '('";
 			return r;
@@ -340,13 +495,13 @@ ParseResult parse(const std::string& sql) {
 				return r;
 			}
 			values.push_back(v);
-			if (toks[pos].type == TokType::Comma) {
+			if (toks[pos].type == TokenType::Comma) {
 				++pos;
 				continue;
 			}
 			break;
 		}
-		if (!expect(toks, pos, TokType::RParen)) {
+		if (!expect(toks, pos, TokenType::RParen)) {
 			r.ok = false;
 			r.error = "Expected ')'";
 			return r;
@@ -358,14 +513,14 @@ ParseResult parse(const std::string& sql) {
 		return r;
 	}
 
-	if (matchKeyword(toks[pos], "SELECT")) {
+	if (toks[pos].type == TokenType::SELECT) {
 		++pos;
-		if (!expect(toks, pos, TokType::Star)) {
+		if (!expect(toks, pos, TokenType::Star)) {
 			r.ok = false;
 			r.error = "Only SELECT * supported";
 			return r;
 		}
-		if (!matchKeyword(toks[pos], "FROM")) {
+		if (toks[pos].type != TokenType::FROM) {
 			r.ok = false;
 			r.error = "Expected FROM";
 			return r;

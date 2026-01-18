@@ -16,6 +16,10 @@ class EngineAPI {
     bool create_table(const std::string& table_name, const std::vector<std::pair<std::string, int>>& columns);
     bool insert_into(const std::string& table_name, const std::vector<std::string>& values);
     bool select_all(const std::string& table_name);
+    bool drop_table(const std::string& table_name);
+    bool truncate_table(const std::string& table_name);
+    bool alter_add_column(const std::string& table_name, const std::string& column_name, int type, int size);
+    bool alter_drop_column(const std::string& table_name, const std::string& column_name);
 };
 
 #endif

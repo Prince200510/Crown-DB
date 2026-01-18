@@ -148,7 +148,11 @@ void CLI::start() {
         std::cout << " - drop database <name>;\n";
         std::cout << " - use <name>;\n";
         std::cout << " - create table <table> (id int, name varchar(255), dob date);\n";
-        std::cout << " - insert into <table> values(1, 'price', 2-2-2026);\n";
+        std::cout << " - drop table <table>;\n";
+        std::cout << " - truncate table <table>;\n";
+        std::cout << " - alter table <table> add column <col> <type>;\n";
+        std::cout << " - alter table <table> drop column <col>;\n";
+        std::cout << " - insert into <table> values(1, 'prince', 2-2-2026);\n";
         std::cout << " - select * from <table>;\n";
         std::cout << "===============================================================\n";
         std::cout << "Developer Information:\n";
@@ -220,6 +224,37 @@ void CLI::start() {
             case SQLParser::StatementType::DropDatabase:
                 ok = engine_api.drop_database(parsed.statement.databaseName);
                 break;
+            case SQLParser::StatementType::DropTable:
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                ok = engine_api.drop_table(parsed.statement.tableName);
+                break;
+            case SQLParser::StatementType::TruncateTable:
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                ok = engine_api.truncate_table(parsed.statement.tableName);
+                break;
+            case SQLParser::StatementType::AlterAddColumn: {
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                const int baseType = (parsed.statement.columnType & 0xFFFF);
+                const int size = (parsed.statement.columnType >> 16);
+                ok = engine_api.alter_add_column(parsed.statement.tableName, parsed.statement.columnName, baseType, size);
+                break;
+            }
+            case SQLParser::StatementType::AlterDropColumn:
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                ok = engine_api.alter_drop_column(parsed.statement.tableName, parsed.statement.columnName);
+                break;
             case SQLParser::StatementType::UseDatabase:
                 ok = engine_api.use_database(parsed.statement.databaseName);
                 break;
@@ -263,6 +298,18 @@ void CLI::start() {
                 break;
             case SQLParser::StatementType::DropDatabase:
                 std::cout << (ok ? "Query OK, database dropped" : "Database does not exist") << " (" << elapsedMs << " ms)\n";
+                break;
+            case SQLParser::StatementType::DropTable:
+                std::cout << (ok ? "Query OK, table dropped" : "Table does not exist") << " (" << elapsedMs << " ms)\n";
+                break;
+            case SQLParser::StatementType::TruncateTable:
+                std::cout << (ok ? "Query OK, table truncated" : "Truncate failed") << " (" << elapsedMs << " ms)\n";
+                break;
+            case SQLParser::StatementType::AlterAddColumn:
+                std::cout << (ok ? "Query OK, column added" : "Alter failed") << " (" << elapsedMs << " ms)\n";
+                break;
+            case SQLParser::StatementType::AlterDropColumn:
+                std::cout << (ok ? "Query OK, column dropped" : "Alter failed") << " (" << elapsedMs << " ms)\n";
                 break;
             case SQLParser::StatementType::UseDatabase:
                 std::cout << (ok ? "Database changed" : "Invalid or corrupted database") << " (" << elapsedMs << " ms)\n";

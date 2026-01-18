@@ -12,6 +12,10 @@ enum class StatementType {
 	Unknown,
 	CreateDatabase,
 	DropDatabase,
+	DropTable,
+	TruncateTable,
+	AlterAddColumn,
+	AlterDropColumn,
 	UseDatabase,
 	CreateTable,
 	InsertInto,
@@ -27,6 +31,8 @@ struct Statement {
 	StatementType type = StatementType::Unknown;
 	std::string databaseName;
 	std::string tableName;
+	std::string columnName;
+	int columnType = 0;
 	std::vector<ColumnDef> columns;
 	std::vector<std::string> values;
 };
