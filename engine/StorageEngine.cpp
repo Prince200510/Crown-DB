@@ -20,6 +20,10 @@ constexpr int TYPE_DATE = 3;
 }
 
 void StorageEngine::create_database_file(const string& path) {
+    create_database_file(path, "");
+}
+
+void StorageEngine::create_database_file(const std::string& path, const std::string& owner) {
     std::ofstream file(path, std::ios::binary);
 
     if (!file) {
@@ -29,11 +33,17 @@ void StorageEngine::create_database_file(const string& path) {
     char magic[4] = {'C', 'D', 'B', '1'};
     file.write(magic, sizeof(magic));
 
-    int version = 1;
+    int version = 2;
     file.write(reinterpret_cast<const char*>(&version), sizeof(version));
 
     int table_count = 0;
     file.write(reinterpret_cast<const char*>(&table_count), sizeof(table_count));
+
+    int owner_len = static_cast<int>(owner.size());
+    file.write(reinterpret_cast<const char*>(&owner_len), sizeof(owner_len));
+    if (owner_len > 0) {
+        file.write(owner.data(), owner_len);
+    }
 
     file.close();
 }
@@ -67,10 +77,64 @@ bool StorageEngine::validate_database_file(const std::string& path) {
     int version;
     file.read(reinterpret_cast<char*>(&version), sizeof(version));
 
-    if (version != 1) {
+    if (!file) return false;
+
+    if (version == 1) {
+        return true;
+    }
+    if (version != 2) {
         return false;
     }
 
+    int table_count = 0;
+    file.read(reinterpret_cast<char*>(&table_count), sizeof(table_count));
+    if (!file) return false;
+
+    int owner_len = 0;
+    file.read(reinterpret_cast<char*>(&owner_len), sizeof(owner_len));
+    if (!file) return false;
+    if (owner_len < 0 || owner_len > 256) return false;
+    if (owner_len > 0) {
+        file.seekg(owner_len, std::ios::cur);
+        if (!file) return false;
+    }
+
+    return true;
+}
+
+bool StorageEngine::read_database_owner(const std::string& path, const std::string& db_name, std::string& outOwner) {
+    outOwner.clear();
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+
+    char magic[4];
+    file.read(magic, 4);
+    if (!file || std::strncmp(magic, "CDB1", 4) != 0) return false;
+
+    int version = 0;
+    file.read(reinterpret_cast<char*>(&version), sizeof(version));
+    if (!file) return false;
+
+    if (version == 1) {
+        outOwner = db_name;
+        return true;
+    }
+    if (version != 2) return false;
+
+    int table_count = 0;
+    file.read(reinterpret_cast<char*>(&table_count), sizeof(table_count));
+    int owner_len = 0;
+    file.read(reinterpret_cast<char*>(&owner_len), sizeof(owner_len));
+    if (!file) return false;
+    if (owner_len < 0 || owner_len > 256) return false;
+
+    std::string owner;
+    owner.resize(static_cast<size_t>(owner_len));
+    if (owner_len > 0) {
+        file.read(&owner[0], owner_len);
+        if (!file) return false;
+    }
+    outOwner = std::move(owner);
     return true;
 }
 

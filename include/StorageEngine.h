@@ -13,8 +13,10 @@ struct Condition{
 class StorageEngine {
     public:
     void create_database_file(const std::string& path);
+	void create_database_file(const std::string& path, const std::string& owner);
     void read_database_file(const std::string& path);
     bool validate_database_file(const std::string& path);
+	bool read_database_owner(const std::string& path, const std::string& db_name, std::string& outOwner);
     int read_table_count(const std::string& path);
     void update_table_count(const std::string& path, int new_count);
     bool createTable(const std::string& db_path, const std::string& table_name, const std::vector<std::pair<std::string, int>>& columns);

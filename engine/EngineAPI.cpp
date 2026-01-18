@@ -1,26 +1,32 @@
 #include "EngineAPI.h"
 #include "StorageEngine.h"
+#include "UserManager.h"
 #include <filesystem>
 
 bool EngineAPI::create_database(const std::string& db_name) {
+	last_error.clear();
     std::filesystem::create_directories("databases");
     std::string db_dir = "databases/" + db_name + ".db";
     std::string meta_path = db_dir + "/db.meta";
 
     if (std::filesystem::exists(db_dir)) {
+		last_error = "Database already exists";
         return false;
     }
 
     StorageEngine storage_engine;
     std::filesystem::create_directories(db_dir);
-    storage_engine.create_database_file(meta_path);
+	const std::string owner = UserManager::get_current_user();
+	storage_engine.create_database_file(meta_path, owner);
     return true;
 }
 
 bool EngineAPI::drop_database(const std::string& db_name) {
+	last_error.clear();
     std::string db_dir = "databases/" + db_name + ".db";
     
     if (!std::filesystem::exists(db_dir)) {
+		last_error = "Database does not exist";
         return false;
     }
 
@@ -34,15 +40,35 @@ bool EngineAPI::drop_database(const std::string& db_name) {
 }
 
 bool EngineAPI::use_database(const std::string& db_name) {
+    last_error.clear();
     std::string db_dir = "databases/" + db_name + ".db";
     std::string meta_path = db_dir + "/db.meta";
 
     if (!std::filesystem::exists(meta_path)) {
+        last_error = "Database does not exist";
         return false;
     }
 
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
+        return false;
+    }
+
+    std::string owner;
+    if (!storage.read_database_owner(meta_path, db_name, owner)) {
+        last_error = "Invalid or corrupted database";
+        return false;
+    }
+
+    const std::string user = UserManager::get_current_user();
+    if (!owner.empty() && owner != user) {
+        last_error = "Access denied";
+        return false;
+    }
+    if (owner.empty() && !user.empty() && owner != user) {
+        // If owner is missing in v2 meta, deny by default.
+        last_error = "Access denied";
         return false;
     }
 

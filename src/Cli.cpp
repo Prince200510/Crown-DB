@@ -22,7 +22,6 @@ void CLI::start() {
     const std::string email = "princemaurya8879@gmail.com";
 
     std::cout << "Welcome to crownDB v1.0\n";
-    std::cout << "Type 'register' to create a new user or 'login' to access an existing account:\n";
     std::cout << "Type 'crowndb --help' for list of commands.\n";
     std::cout << "Type 'EXIT;' to quit.\n";
 
@@ -171,7 +170,7 @@ void CLI::start() {
     std::string statement;
     while (running) {
         if (statement.empty()) {
-            std::cout << "crownDB Client> ";
+            std::cout << "crownDB client> ";
         } else {
             std::cout << "           -> ";
         }
@@ -325,7 +324,12 @@ void CLI::start() {
                 std::cout << (ok ? "Query OK, column dropped" : "Alter failed") << " (" << elapsedMs << " ms)\n";
                 break;
             case SQLParser::StatementType::UseDatabase:
-                std::cout << (ok ? "Database changed" : "Invalid or corrupted database") << " (" << elapsedMs << " ms)\n";
+                if (ok) {
+                    std::cout << "Database changed" << " (" << elapsedMs << " ms)\n";
+                } else {
+                    const std::string err = engine_api.get_last_error();
+                    std::cout << (err.empty() ? "Use failed" : err) << " (" << elapsedMs << " ms)\n";
+                }
                 break;
             case SQLParser::StatementType::CreateTable:
                 std::cout << (ok ? "Query OK, table created" : "Failed to create table") << " (" << elapsedMs << " ms)\n";
