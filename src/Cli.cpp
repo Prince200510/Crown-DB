@@ -264,6 +264,149 @@ void CLI::start() {
         }
     });
 
+    addArgCommand("create table", [&](const std::vector<std::string>&, const std::string& rawInput) {
+        if (!engine_api.has_active_database()) {
+            std::cout << "No database selected. Use: use <database_name>;\n";
+            return;
+        }
+
+        if (!endsWithSemicolon(rawInput)) {
+            std::cout << "Statement must end with ';'\n";
+            return;
+        }
+
+        auto ltrim = [](std::string& s) {
+            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
+                s.erase(s.begin());
+            }
+        };
+        auto rtrim = [](std::string& s) {
+            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+                s.pop_back();
+            }
+        };
+        auto trimCopy = [&](std::string s) {
+            ltrim(s);
+            rtrim(s);
+            return s;
+        };
+
+        std::string stmt = rawInput;
+        rtrim(stmt);
+        if (!stmt.empty() && stmt.back() == ';') {
+            stmt.pop_back();
+        }
+        stmt = trimCopy(stmt);
+
+        const std::string normalized = normalize(stmt);
+        // Expect: CREATE TABLE <name> ( ... )
+        if (normalized.rfind("CREATE TABLE ", 0) != 0) {
+            std::cout << "Usage: create table <table_name> (col type, ...);\n";
+            return;
+        }
+
+        const size_t openParen = stmt.find('(');
+        const size_t closeParen = stmt.rfind(')');
+        if (openParen == std::string::npos || closeParen == std::string::npos || closeParen <= openParen) {
+            std::cout << "Usage: create table <table_name> (col type, ...);\n";
+            return;
+        }
+
+        const std::string head = trimCopy(stmt.substr(0, openParen));
+        const std::string colsPart = stmt.substr(openParen + 1, closeParen - openParen - 1);
+        const auto headWords = splitWords(head);
+        if (headWords.size() < 3) {
+            std::cout << "Usage: create table <table_name> (col type, ...);\n";
+            return;
+        }
+
+        const std::string tableName = headWords[2];
+        if (tableName.empty()) {
+            std::cout << "Usage: create table <table_name> (col type, ...);\n";
+            return;
+        }
+
+        std::vector<std::pair<std::string, int>> columns;
+        size_t pos = 0;
+        while (pos < colsPart.size()) {
+            size_t comma = colsPart.find(',', pos);
+            std::string colDef = (comma == std::string::npos) ? colsPart.substr(pos) : colsPart.substr(pos, comma - pos);
+            colDef = trimCopy(colDef);
+            if (!colDef.empty()) {
+                const auto parts = splitWords(colDef);
+                if (parts.size() < 2) {
+                    std::cout << "Invalid column definition: " << colDef << "\n";
+                    return;
+                }
+
+                const std::string colName = parts[0];
+                std::string typeSpec = colDef.substr(colName.size());
+                typeSpec = trimCopy(typeSpec);
+                std::string typeUpper;
+                typeUpper.reserve(typeSpec.size());
+                for (unsigned char ch : typeSpec) {
+                    typeUpper.push_back(static_cast<char>(std::toupper(ch)));
+                }
+
+                // Type encoding: low 16 bits = base type, high 16 bits = varchar length
+                constexpr int TYPE_INT = 1;
+                constexpr int TYPE_VARCHAR = 2;
+                constexpr int TYPE_DATE = 3;
+                int encodedType = 0;
+
+                if (typeUpper.rfind("INT", 0) == 0) {
+                    encodedType = TYPE_INT;
+                } else if (typeUpper.rfind("DATE", 0) == 0) {
+                    encodedType = TYPE_DATE;
+                } else if (typeUpper.rfind("VARCHAR", 0) == 0) {
+                    int varcharLen = 255;
+                    const size_t lp = typeUpper.find('(');
+                    const size_t rp = typeUpper.find(')');
+                    if (lp != std::string::npos && rp != std::string::npos && rp > lp + 1) {
+                        const std::string lenStr = typeUpper.substr(lp + 1, rp - lp - 1);
+                        try {
+                            varcharLen = std::stoi(lenStr);
+                        } catch (...) {
+                            std::cout << "Invalid varchar length: " << lenStr << "\n";
+                            return;
+                        }
+                        if (varcharLen <= 0) {
+                            std::cout << "Invalid varchar length: " << lenStr << "\n";
+                            return;
+                        }
+                    }
+                    encodedType = TYPE_VARCHAR | (varcharLen << 16);
+                } else {
+                    std::cout << "Unsupported type (supported: INT, VARCHAR(n), DATE): " << typeSpec << "\n";
+                    return;
+                }
+
+                columns.emplace_back(colName, encodedType);
+            }
+
+            if (comma == std::string::npos) {
+                break;
+            }
+            pos = comma + 1;
+        }
+
+        if (columns.empty()) {
+            std::cout << "At least one column is required\n";
+            return;
+        }
+
+        const auto start = std::chrono::steady_clock::now();
+        const bool ok = engine_api.create_table(tableName, columns);
+        const auto end = std::chrono::steady_clock::now();
+        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+        if (ok) {
+            std::cout << "Query OK, table created (" << elapsedMs << " ms)\n";
+        } else {
+            std::cout << "Failed to create table (" << elapsedMs << " ms)\n";
+        }
+    });
+
     std::string input;
     std::string statement;
     while (running) {
