@@ -5,6 +5,7 @@
 class EngineAPI {
     private:
     std::string current_database_name;
+    
     public:
     bool create_database(const std::string& db_name);
     bool drop_database(const std::string& name);

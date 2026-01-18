@@ -92,6 +92,14 @@ void CLI::start() {
         return words;
     };
 
+    auto endsWithSemicolon = [](const std::string& text) {
+        size_t end = text.size();
+        while (end > 0 && std::isspace(static_cast<unsigned char>(text[end - 1]))) {
+            --end;
+        }
+        return end > 0 && text[end - 1] == ';';
+    };
+
     bool running = true;
 
     std::map<std::string, std::function<void(std::string)>> commands;
@@ -176,7 +184,7 @@ void CLI::start() {
 
     addArgCommand("create database", [&](const std::vector<std::string>& args, const std::string&) {
         if (args.empty() || args[0].empty()) {
-            std::cout << "Usage: create database <name>;\n";
+            std::cout << "Usage: create database <database_name>;\n";
             return;
         }
 
@@ -193,17 +201,109 @@ void CLI::start() {
         }
     });
 
+    addArgCommand("drop database", [&](const std::vector<std::string>& args, const std::string&) {
+        if (args.empty() || args[0].empty()) {
+            std::cout << "Usage: drop database <database_name>;\n";
+            return;
+        }
+
+        const std::string& dbName = args[0];
+        const auto start = std::chrono::steady_clock::now();
+        const bool dropped = engine_api.drop_database(dbName);
+        const auto end = std::chrono::steady_clock::now();
+        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+        if (dropped) {
+            std::cout << "Query OK, database dropped successfully in " << elapsedMs << " ms\n";
+        } else {
+            std::cout << "Database does not exist (" << elapsedMs << " ms)\n";
+        }
+    });
+
+    addArgCommand("use", [&](const std::vector<std::string>&, const std::string& rawInput) {
+        if (!endsWithSemicolon(rawInput)) {
+            std::cout << "Statement must end with ';'\n";
+            return;
+        }
+
+        std::string stmt = rawInput;
+        if (!stmt.empty() && stmt.back() == ';') {
+            stmt.pop_back();
+        }
+
+        auto ltrim = [](std::string& s) {
+            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
+                s.erase(s.begin());
+            }
+        };
+        auto rtrim = [](std::string& s) {
+            while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+                s.pop_back();
+            }
+        };
+
+        ltrim(stmt);
+        if (stmt.size() < 4) {
+            std::cout << "Usage: use <database_name>;\n";
+            return;
+        }
+
+        std::string name = stmt.substr(4);
+        ltrim(name);
+        rtrim(name);
+
+        if (name.empty()) {
+            std::cout << "Usage: use <database_name>;\n";
+            return;
+        }
+
+        if (engine_api.use_database(name)) {
+            std::cout << "Database changed\n";
+        } else {
+            std::cout << "Invalid or corrupted database\n";
+        }
+    });
 
     std::string input;
+    std::string statement;
     while (running) {
-        std::cout << "crownDB Client> ";
-        std::getline(std::cin, input);
+        if (statement.empty()) {
+            std::cout << "crownDB Client> ";
+        } else {
+            std::cout << "           -> ";
+        }
 
-        const std::string rawClean = cleanInput(input);
+        if (!std::getline(std::cin, input)) {
+            break;
+        }
+
+        if (statement.empty()) {
+            const std::string rawCleanLine = cleanInput(input);
+            const std::string keyLine = normalize(rawCleanLine);
+            auto it = commands.find(keyLine);
+            if (it != commands.end()) {
+                it->second(input);
+                continue;
+            }
+        }
+
+        if (!statement.empty()) {
+            statement.push_back(' ');
+        }
+        statement += input;
+
+        if (!endsWithSemicolon(statement)) {
+            continue;
+        }
+
+        const std::string rawStatement = statement;
+        const std::string rawClean = cleanInput(statement);
         const std::string key = normalize(rawClean);
+        statement.clear();
+
         auto it = commands.find(key);
         if (it != commands.end()) {
-            it->second(input);
+            it->second(rawClean);
             continue;
         }
 
@@ -227,7 +327,7 @@ void CLI::start() {
                     if (rawWords.size() > n) {
                         args.assign(rawWords.begin() + static_cast<std::ptrdiff_t>(n), rawWords.end());
                     }
-                    argIt->second(args, rawClean);
+                    argIt->second(args, rawStatement);
                     handled = true;
                     break;
                 }
@@ -237,10 +337,9 @@ void CLI::start() {
                 }
             }
         }
-        if (handled) {
-            continue;
-        }
 
-        std::cout << "Command not recognized. Type 'crowndb --help' for help.\n";
+        if (!handled) {
+            std::cout << "Command not recognized. Type 'crowndb --help' for help.\n";
+        }
     }
 }

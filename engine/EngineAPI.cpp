@@ -38,6 +38,11 @@ bool EngineAPI::use_database(const std::string& db_name) {
         return false;
     }
 
+    StorageEngine storage;
+    if (!storage.validate_database_file(path)) {
+        return false;
+    }
+
     current_database_name = db_name;
     return true;
 }
