@@ -154,6 +154,7 @@ void CLI::start() {
         std::cout << " - alter table <table> drop column <col>;\n";
         std::cout << " - insert into <table> values(1, 'prince', 2-2-2026);\n";
         std::cout << " - select * from <table>;\n";
+        std::cout << " - select * from <table> where <col> = <value>;\n";
         std::cout << "===============================================================\n";
         std::cout << "Developer Information:\n";
         std::cout << "Developer name: " << developer << "\n";
@@ -285,6 +286,18 @@ void CLI::start() {
                 }
                 ok = engine_api.select_all(parsed.statement.tableName);
                 break;
+            case SQLParser::StatementType::SelectWhere: {
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                Condition cond;
+                cond.column_name = parsed.statement.whereColumn;
+                cond.op = parsed.statement.whereOp;
+                cond.value = parsed.statement.whereValue;
+                ok = engine_api.select_where(parsed.statement.tableName, cond);
+                break;
+            }
             default:
                 std::cout << "Unsupported SQL statement\n";
                 continue;
@@ -321,6 +334,11 @@ void CLI::start() {
                 std::cout << (ok ? "Query OK, 1 row inserted" : "Insert failed") << " (" << elapsedMs << " ms)\n";
                 break;
             case SQLParser::StatementType::SelectAll:
+                if (!ok) {
+                    std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
+                }
+                break;
+            case SQLParser::StatementType::SelectWhere:
                 if (!ok) {
                     std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
                 }

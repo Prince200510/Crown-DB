@@ -165,3 +165,18 @@ bool EngineAPI::alter_drop_column(const std::string& table_name, const std::stri
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
     return StorageEngine::alter_drop_column(table_path, column_name);
 }
+
+bool EngineAPI::select_where(const std::string& table_name, const Condition& cond) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    return StorageEngine::select_where(table_path, cond);
+}

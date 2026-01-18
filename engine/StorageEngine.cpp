@@ -745,41 +745,72 @@ bool StorageEngine::alter_drop_column(
     return true;
 }
 
-bool compare_int(int a, const std::string& op, int b) {
-    if(op == "=") return a == b;
-    if(op == "!=") return a != b;
-    if(op == "<") return a < b;
-    if(op == "<=") return a <= b;
-    if(op == ">") return a > b;
-    if(op == ">=") return a >= b;
-    return false;
+static bool compareInt(int a, const std::string& op, int b) {
+	if (op == "=") return a == b;
+	if (op == "!=") return a != b;
+	if (op == ">") return a > b;
+	if (op == "<") return a < b;
+	if (op == ">=") return a >= b;
+	if (op == "<=") return a <= b;
+	return false;
 }
 
-bool compare_string(const std::string& a, const std::string& op, const std::string& b) {
-    if(op == "=") return a == b;
-    if(op == "!=") return a != b;
-}
-
-bool compareInt(int a, const std::string& op, int b) {
-    if (op == "=") return a == b;
-    if (op == "!=") return a != b;
-    if (op == ">") return a > b;
-    if (op == "<") return a < b;
-    if (op == ">=") return a >= b;
-    if (op == "<=") return a <= b;
-    return false;
-}
-
-bool compareString(const std::string& a, const std::string& op, const std::string& b) {
-    if (op == "=") return a == b;
-    if (op == "!=") return a != b;
-    return false;
+static bool compareString(const std::string& a, const std::string& op, const std::string& b) {
+	if (op == "=") return a == b;
+	if (op == "!=") return a != b;
+	return false;
 }
 
 bool StorageEngine::select_where(
     const std::string& tablePath,
     const Condition& cond
 ) {
+    auto ltrim = [](std::string& s) {
+        while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) s.erase(s.begin());
+    };
+    auto rtrim = [](std::string& s) {
+        while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
+    };
+    auto trimCopy = [&](std::string s) {
+        ltrim(s);
+        rtrim(s);
+        return s;
+    };
+    auto parseIntStrict = [](const std::string& s, int& out) {
+        size_t idx = 0;
+        try { out = std::stoi(s, &idx); } catch (...) { return false; }
+        return idx == s.size();
+    };
+    auto parseDateToInt = [&](const std::string& s, int& out) {
+        std::string t = trimCopy(s);
+        std::vector<int> parts;
+        std::string cur;
+        for (char ch : t) {
+            if (ch == '-') {
+                if (cur.empty()) return false;
+                int v = 0;
+                if (!parseIntStrict(cur, v)) return false;
+                parts.push_back(v);
+                cur.clear();
+                continue;
+            }
+            if (!std::isdigit(static_cast<unsigned char>(ch))) return false;
+            cur.push_back(ch);
+        }
+        if (cur.empty()) return false;
+        int v = 0;
+        if (!parseIntStrict(cur, v)) return false;
+        parts.push_back(v);
+        if (parts.size() != 3) return false;
+        int day = 0, month = 0, year = 0;
+        if (parts[0] >= 1000) { year = parts[0]; month = parts[1]; day = parts[2]; }
+        else if (parts[2] >= 1000) { day = parts[0]; month = parts[1]; year = parts[2]; }
+        else { return false; }
+        if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+        out = year * 10000 + month * 100 + day;
+        return true;
+    };
+
     std::ifstream file(tablePath, std::ios::binary);
     if (!file) {
         std::cerr << "Table not found\n";
@@ -787,76 +818,158 @@ bool StorageEngine::select_where(
     }
 
     char magic[8];
-    int colCount, rowCount;
     file.read(magic, 8);
-    file.read((char*)&colCount, sizeof(int));
-    file.read((char*)&rowCount, sizeof(int));
-
-    if (std::string(magic, 8) != "CROWNTBL") {
+    if (file.gcount() != 8 || std::string(magic, 8) != "CROWNTBL") {
         std::cerr << "Invalid table\n";
         return false;
     }
 
-    std::vector<Column> cols;
-    int whereIndex = -1;
-
-    for (int i = 0; i < colCount; i++) {
-        int l;
-        file.read((char*)&l, sizeof(int));
-        std::string name(l, '\0');
-        file.read(&name[0], l);
-
-        int t, s;
-        file.read((char*)&t, sizeof(int));
-        file.read((char*)&s, sizeof(int));
-
-        if (name == cond.column)
-            whereIndex = i;
-
-        cols.push_back({name, t, s});
+    int colCount = 0;
+    int rowCount = 0;
+    file.read(reinterpret_cast<char*>(&colCount), sizeof(int));
+    file.read(reinterpret_cast<char*>(&rowCount), sizeof(int));
+    if (colCount <= 0 || rowCount < 0) {
+        return false;
     }
 
-    if (whereIndex == -1) {
+    std::vector<Column> cols;
+    cols.reserve(static_cast<size_t>(colCount));
+    int whereIndex = -1;
+    for (int i = 0; i < colCount; i++) {
+        int l = 0;
+        file.read(reinterpret_cast<char*>(&l), sizeof(int));
+        if (l <= 0) return false;
+        std::string name(static_cast<size_t>(l), '\0');
+        file.read(&name[0], l);
+        int t = 0;
+        int s = 0;
+        file.read(reinterpret_cast<char*>(&t), sizeof(int));
+        file.read(reinterpret_cast<char*>(&s), sizeof(int));
+        if (name == cond.column_name) {
+            whereIndex = i;
+        }
+        cols.push_back({std::move(name), t, s});
+    }
+
+    if (whereIndex < 0) {
         std::cerr << "Column not found\n";
         return false;
     }
 
-    for (auto& c : cols)
-        std::cout << c.name << "\t";
-    std::cout << "\n----------------------------\n";
+    const Column& whereCol = cols[static_cast<size_t>(whereIndex)];
+    std::string whereValueRaw = trimCopy(cond.value);
+    if (whereValueRaw.size() >= 2 && ((whereValueRaw.front() == '\'' && whereValueRaw.back() == '\'') || (whereValueRaw.front() == '"' && whereValueRaw.back() == '"'))) {
+        whereValueRaw = whereValueRaw.substr(1, whereValueRaw.size() - 2);
+        whereValueRaw = trimCopy(whereValueRaw);
+    }
 
+    int whereInt = 0;
+    std::string whereStr;
+    bool whereIsInt = false;
+    if (whereCol.type == TYPE_INT) {
+        if (!parseIntStrict(whereValueRaw, whereInt)) {
+            std::cerr << "Invalid INT in WHERE\n";
+            return false;
+        }
+        whereIsInt = true;
+    } else if (whereCol.type == TYPE_DATE) {
+        if (!parseDateToInt(whereValueRaw, whereInt)) {
+            std::cerr << "Invalid DATE in WHERE\n";
+            return false;
+        }
+        whereIsInt = true;
+    } else if (whereCol.type == TYPE_VARCHAR) {
+        whereStr = whereValueRaw;
+        whereIsInt = false;
+    } else {
+        return false;
+    }
+
+    std::vector<std::vector<std::string>> rows;
+    rows.reserve(static_cast<size_t>(rowCount));
+    std::vector<size_t> widths;
+    widths.reserve(static_cast<size_t>(colCount));
+    for (int i = 0; i < colCount; i++) {
+        widths.push_back(cols[static_cast<size_t>(i)].name.size());
+    }
+
+    int matched = 0;
     for (int r = 0; r < rowCount; r++) {
         std::vector<std::string> row;
-        bool match = false;
-
+        row.reserve(static_cast<size_t>(colCount));
+        bool isMatch = false;
         for (int c = 0; c < colCount; c++) {
-            if (cols[c].type == TYPE_INT) {
-                int v;
-                file.read((char*)&v, sizeof(int));
-                row.push_back(std::to_string(v));
-
-                if (c == whereIndex)
-                    match = compareInt(v, cond.op, std::stoi(cond.value));
+            const auto& col = cols[static_cast<size_t>(c)];
+            std::string cell;
+            if (col.type == TYPE_INT) {
+                int v = 0;
+                file.read(reinterpret_cast<char*>(&v), sizeof(int));
+                cell = std::to_string(v);
+                if (c == whereIndex && whereIsInt) {
+                    isMatch = compareInt(v, cond.op, whereInt);
+                }
+            } else if (col.type == TYPE_DATE) {
+                int d = 0;
+                file.read(reinterpret_cast<char*>(&d), sizeof(int));
+                const int year = d / 10000;
+                const int month = (d / 100) % 100;
+                const int day = d % 100;
+                cell = std::to_string(year) + "-" + (month < 10 ? "0" : "") + std::to_string(month) + "-" + (day < 10 ? "0" : "") + std::to_string(day);
+                if (c == whereIndex && whereIsInt) {
+                    isMatch = compareInt(d, cond.op, whereInt);
+                }
+            } else if (col.type == TYPE_VARCHAR) {
+                int len = 0;
+                file.read(reinterpret_cast<char*>(&len), sizeof(int));
+                if (len < 0) return false;
+                std::string s(static_cast<size_t>(len), '\0');
+                if (len > 0) {
+                    file.read(&s[0], len);
+                }
+                cell = std::move(s);
+                if (c == whereIndex && !whereIsInt) {
+                    isMatch = compareString(cell, cond.op, whereStr);
+                }
+            } else {
+                return false;
             }
-            else {
-                int l;
-                file.read((char*)&l, sizeof(int));
-                std::string s(l, '\0');
-                file.read(&s[0], l);
-                row.push_back(s);
-
-                if (c == whereIndex)
-                    match = compareString(s, cond.op, cond.value);
-            }
+            widths[static_cast<size_t>(c)] = std::max(widths[static_cast<size_t>(c)], cell.size());
+            row.push_back(std::move(cell));
         }
-
-        if (match) {
-            for (auto& v : row)
-                std::cout << v << "\t";
-            std::cout << "\n";
+        if (isMatch) {
+            rows.push_back(std::move(row));
+            matched++;
         }
     }
 
-    file.close();
+    auto printBorder = [&](const std::vector<size_t>& w) {
+        std::cout << "+";
+        for (size_t i = 0; i < w.size(); i++) {
+            std::cout << std::string(w[i] + 2, '-') << "+";
+        }
+        std::cout << "\n";
+    };
+    auto printRow = [&](const std::vector<std::string>& cells, const std::vector<size_t>& w) {
+        std::cout << "|";
+        for (size_t i = 0; i < w.size(); i++) {
+            const std::string& v = (i < cells.size()) ? cells[i] : std::string();
+            std::cout << " " << std::left << std::setw(static_cast<int>(w[i])) << v << " |";
+        }
+        std::cout << "\n";
+    };
+
+    printBorder(widths);
+    {
+        std::vector<std::string> header;
+        header.reserve(cols.size());
+        for (const auto& c : cols) header.push_back(c.name);
+        printRow(header, widths);
+    }
+    printBorder(widths);
+    for (const auto& r : rows) {
+        printRow(r, widths);
+    }
+    printBorder(widths);
+    std::cout << matched << " row" << (matched == 1 ? "" : "s") << " in set\n";
     return true;
 }

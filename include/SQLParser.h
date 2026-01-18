@@ -19,7 +19,8 @@ enum class StatementType {
 	UseDatabase,
 	CreateTable,
 	InsertInto,
-	SelectAll
+	SelectAll,
+	SelectWhere
 };
 
 struct ColumnDef {
@@ -33,6 +34,9 @@ struct Statement {
 	std::string tableName;
 	std::string columnName;
 	int columnType = 0;
+	std::string whereColumn;
+	std::string whereOp;
+	std::string whereValue;
 	std::vector<ColumnDef> columns;
 	std::vector<std::string> values;
 };

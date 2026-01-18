@@ -4,6 +4,8 @@
 #include <utility>
 #include <vector>
 
+#include "StorageEngine.h"
+
 class EngineAPI {
     private:
     std::string current_database_name;
@@ -20,6 +22,7 @@ class EngineAPI {
     bool truncate_table(const std::string& table_name);
     bool alter_add_column(const std::string& table_name, const std::string& column_name, int type, int size);
     bool alter_drop_column(const std::string& table_name, const std::string& column_name);
+    bool select_where(const std::string& table_name, const Condition& cond);
 };
 
 #endif

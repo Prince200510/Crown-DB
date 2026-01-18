@@ -33,6 +33,14 @@ enum class TokenType {
 	INT,
 	VARCHAR,
 	DATE
+	,
+	WHERE,
+	EQ,
+	NE,
+	LT,
+	LE,
+	GT,
+	GE
 };
 
 struct Token {
@@ -78,6 +86,7 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 		if (upperIdent == "INT") return TokenType::INT;
 		if (upperIdent == "VARCHAR") return TokenType::VARCHAR;
 		if (upperIdent == "DATE") return TokenType::DATE;
+		if (upperIdent == "WHERE") return TokenType::WHERE;
 		return TokenType::Identifier;
 	};
 
@@ -97,7 +106,8 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 				++i;
 			}
 			std::string ident = sql.substr(start, i - start);
-			push(keywordToTokenType(upper(ident)), std::move(ident));
+			const TokenType kw = keywordToTokenType(upper(ident));
+			push(kw, std::move(ident));
 			continue;
 		}
 
@@ -133,6 +143,19 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 			case ')': push(TokenType::RParen, ")"); ++i; break;
 			case ';': push(TokenType::Semicolon, ";"); ++i; break;
 			case '-': push(TokenType::Dash, "-"); ++i; break;
+				case '=': push(TokenType::EQ, "="); ++i; break;
+				case '>':
+					if (i + 1 < sql.size() && sql[i + 1] == '=') { push(TokenType::GE, ">="); i += 2; }
+					else { push(TokenType::GT, ">"); ++i; }
+					break;
+				case '<':
+					if (i + 1 < sql.size() && sql[i + 1] == '=') { push(TokenType::LE, "<="); i += 2; }
+					else { push(TokenType::LT, "<"); ++i; }
+					break;
+				case '!':
+					if (i + 1 < sql.size() && sql[i + 1] == '=') { push(TokenType::NE, "!="); i += 2; break; }
+					error = "Unexpected character in SQL";
+					return {};
 			default:
 				error = "Unexpected character in SQL";
 				return {};
@@ -209,6 +232,7 @@ static bool parseValue(const std::vector<Token>& toks, size_t& pos, std::string&
 			case TokenType::INT:
 			case TokenType::VARCHAR:
 			case TokenType::DATE:
+			case TokenType::WHERE:
 				return true;
 			default:
 				return false;
@@ -532,6 +556,43 @@ ParseResult parse(const std::string& sql) {
 			r.error = "Expected table name";
 			return r;
 		}
+		if (toks[pos].type == TokenType::WHERE) {
+			++pos;
+			std::string col;
+			if (!parseIdentifier(toks, pos, col)) {
+				r.ok = false;
+				r.error = "Expected column name";
+				return r;
+			}
+			std::string op;
+			switch (toks[pos].type) {
+				case TokenType::EQ: op = "="; break;
+				case TokenType::NE: op = "!="; break;
+				case TokenType::LT: op = "<"; break;
+				case TokenType::LE: op = "<="; break;
+				case TokenType::GT: op = ">"; break;
+				case TokenType::GE: op = ">="; break;
+				default:
+					r.ok = false;
+					r.error = "Expected comparison operator";
+					return r;
+			}
+			++pos;
+			std::string v;
+			if (!parseValue(toks, pos, v)) {
+				r.ok = false;
+				r.error = "Invalid value";
+				return r;
+			}
+			r.statement.type = StatementType::SelectWhere;
+			r.statement.tableName = table;
+			r.statement.whereColumn = col;
+			r.statement.whereOp = op;
+			r.statement.whereValue = v;
+			r.ok = true;
+			return r;
+		}
+
 		r.statement.type = StatementType::SelectAll;
 		r.statement.tableName = table;
 		r.ok = true;
