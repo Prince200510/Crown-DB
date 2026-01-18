@@ -1,0 +1,44 @@
+
+#ifndef SQL_PARSER_H
+#define SQL_PARSER_H
+
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace SQLParser {
+
+enum class StatementType {
+	Unknown,
+	CreateDatabase,
+	DropDatabase,
+	UseDatabase,
+	CreateTable,
+	InsertInto,
+	SelectAll
+};
+
+struct ColumnDef {
+	std::string name;
+	int type;
+};
+
+struct Statement {
+	StatementType type = StatementType::Unknown;
+	std::string databaseName;
+	std::string tableName;
+	std::vector<ColumnDef> columns;
+	std::vector<std::string> values;
+};
+
+struct ParseResult {
+	bool ok = false;
+	Statement statement;
+	std::string error;
+};
+
+ParseResult parse(const std::string& sql);
+
+}
+
+#endif

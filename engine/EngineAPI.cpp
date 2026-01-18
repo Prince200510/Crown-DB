@@ -66,3 +66,33 @@ bool EngineAPI::create_table(const std::string& table_name, const std::vector<st
     }
     return storage.createTable(meta_path, table_name, columns);
 }
+
+bool EngineAPI::insert_into(const std::string& table_name, const std::vector<std::string>& values) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    return StorageEngine::insert_row(table_path, values);
+}
+
+bool EngineAPI::select_all(const std::string& table_name) {
+    if (current_database_name.empty()) {
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    return StorageEngine::select_all(table_path);
+}
