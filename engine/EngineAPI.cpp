@@ -67,7 +67,6 @@ bool EngineAPI::use_database(const std::string& db_name) {
         return false;
     }
     if (owner.empty() && !user.empty() && owner != user) {
-        // If owner is missing in v2 meta, deny by default.
         last_error = "Access denied";
         return false;
     }
@@ -81,62 +80,87 @@ bool EngineAPI::has_active_database() const {
 }
 
 bool EngineAPI::create_table(const std::string& table_name, const std::vector<std::pair<std::string, int>>& columns) {
+    last_error.clear();
     if(current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     StorageEngine storage;
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
-    return storage.createTable(meta_path, table_name, columns);
+    const bool ok = storage.createTable(meta_path, table_name, columns);
+    if (!ok) {
+        last_error = "Create table failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::insert_into(const std::string& table_name, const std::vector<std::string>& values) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
-    return StorageEngine::insert_row(table_path, values);
+    const bool ok = StorageEngine::insert_row(table_path, values);
+    if (!ok) {
+        last_error = "Insert failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::select_all(const std::string& table_name) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
-    return StorageEngine::select_all(table_path);
+    const bool ok = StorageEngine::select_all(table_path);
+    if (!ok) {
+        last_error = "Select failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::drop_table(const std::string& table_name) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
     const bool ok = StorageEngine::drop_table(table_path);
     if (!ok) {
+        last_error = "Drop table failed";
         return false;
     }
 
@@ -148,63 +172,91 @@ bool EngineAPI::drop_table(const std::string& table_name) {
 }
 
 bool EngineAPI::truncate_table(const std::string& table_name) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
-    return StorageEngine::truncate_table(table_path);
+    const bool ok = StorageEngine::truncate_table(table_path);
+    if (!ok) {
+        last_error = "Truncate failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::alter_add_column(const std::string& table_name, const std::string& column_name, int type, int size) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
-    return StorageEngine::alter_add_column(table_path, column_name, type, size);
+    const bool ok = StorageEngine::alter_add_column(table_path, column_name, type, size);
+    if (!ok) {
+        last_error = "Alter failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::alter_drop_column(const std::string& table_name, const std::string& column_name) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
-    return StorageEngine::alter_drop_column(table_path, column_name);
+    const bool ok = StorageEngine::alter_drop_column(table_path, column_name);
+    if (!ok) {
+        last_error = "Alter failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::select_where(const std::string& table_name, const Condition& cond) {
+    last_error.clear();
     if (current_database_name.empty()) {
+        last_error = "No database selected";
         return false;
     }
 
     const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
     StorageEngine storage;
     if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
         return false;
     }
 
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
-    return StorageEngine::select_where(table_path, cond);
+    const bool ok = StorageEngine::select_where(table_path, cond);
+    if (!ok) {
+        last_error = "Select failed";
+    }
+    return ok;
 }
 
 bool EngineAPI::select_columns(
