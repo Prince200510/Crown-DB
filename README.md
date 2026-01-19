@@ -180,6 +180,3 @@ Databases are stored as directories under `databases/<name>.db/`, and each table
 
 ---
 
-## License
-
-Add your preferred license here.
