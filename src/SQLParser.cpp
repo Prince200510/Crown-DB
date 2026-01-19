@@ -35,6 +35,11 @@ enum class TokenType {
 	DATE
 	,
 	WHERE,
+	COUNT,
+	SUM,
+	AVG,
+	MIN,
+	MAX,
 	EQ,
 	NE,
 	LT,
@@ -87,6 +92,11 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 		if (upperIdent == "VARCHAR") return TokenType::VARCHAR;
 		if (upperIdent == "DATE") return TokenType::DATE;
 		if (upperIdent == "WHERE") return TokenType::WHERE;
+		if (upperIdent == "COUNT") return TokenType::COUNT;
+		if (upperIdent == "SUM") return TokenType::SUM;
+		if (upperIdent == "AVG") return TokenType::AVG;
+		if (upperIdent == "MIN") return TokenType::MIN;
+		if (upperIdent == "MAX") return TokenType::MAX;
 		return TokenType::Identifier;
 	};
 
@@ -233,6 +243,11 @@ static bool parseValue(const std::vector<Token>& toks, size_t& pos, std::string&
 			case TokenType::VARCHAR:
 			case TokenType::DATE:
 			case TokenType::WHERE:
+			case TokenType::COUNT:
+			case TokenType::SUM:
+			case TokenType::AVG:
+			case TokenType::MIN:
+			case TokenType::MAX:
 				return true;
 			default:
 				return false;
@@ -539,9 +554,127 @@ ParseResult parse(const std::string& sql) {
 
 	if (toks[pos].type == TokenType::SELECT) {
 		++pos;
-		if (!expect(toks, pos, TokenType::Star)) {
+		if (toks[pos].type == TokenType::Star) {
+			++pos;
+			if (toks[pos].type != TokenType::FROM) {
+				r.ok = false;
+				r.error = "Expected FROM";
+				return r;
+			}
+			++pos;
+			std::string table;
+			if (!parseIdentifier(toks, pos, table)) {
+				r.ok = false;
+				r.error = "Expected table name";
+				return r;
+			}
+			if (toks[pos].type == TokenType::WHERE) {
+				++pos;
+				std::string col;
+				if (!parseIdentifier(toks, pos, col)) {
+					r.ok = false;
+					r.error = "Expected column name";
+					return r;
+				}
+				std::string op;
+				switch (toks[pos].type) {
+					case TokenType::EQ: op = "="; break;
+					case TokenType::NE: op = "!="; break;
+					case TokenType::LT: op = "<"; break;
+					case TokenType::LE: op = "<="; break;
+					case TokenType::GT: op = ">"; break;
+					case TokenType::GE: op = ">="; break;
+					default:
+						r.ok = false;
+						r.error = "Expected comparison operator";
+						return r;
+				}
+				++pos;
+				std::string v;
+				if (!parseValue(toks, pos, v)) {
+					r.ok = false;
+					r.error = "Invalid value";
+					return r;
+				}
+				r.statement.type = StatementType::SelectWhere;
+				r.statement.tableName = table;
+				r.statement.whereColumn = col;
+				r.statement.whereOp = op;
+				r.statement.whereValue = v;
+				r.ok = true;
+				return r;
+			}
+			r.statement.type = StatementType::SelectAll;
+			r.statement.tableName = table;
+			r.ok = true;
+			return r;
+		}
+
+		std::vector<std::string> selectCols;
+		bool hasAgg = false;
+		SQLParser::AggregateFunc aggFunc = SQLParser::AggregateFunc::Count;
+		std::string aggCol;
+		while (true) {
+			if (toks[pos].type == TokenType::Identifier) {
+				std::string c;
+				if (!parseIdentifier(toks, pos, c)) {
+					r.ok = false;
+					r.error = "Expected column name";
+					return r;
+				}
+				selectCols.push_back(std::move(c));
+			} else {
+				SQLParser::AggregateFunc f;
+				switch (toks[pos].type) {
+					case TokenType::COUNT: f = SQLParser::AggregateFunc::Count; break;
+					case TokenType::SUM: f = SQLParser::AggregateFunc::Sum; break;
+					case TokenType::AVG: f = SQLParser::AggregateFunc::Avg; break;
+					case TokenType::MIN: f = SQLParser::AggregateFunc::Min; break;
+					case TokenType::MAX: f = SQLParser::AggregateFunc::Max; break;
+					default:
+						r.ok = false;
+						r.error = "Expected column name, or COUNT/SUM/AVG/MIN/MAX";
+						return r;
+				}
+				if (hasAgg) {
+					r.ok = false;
+					r.error = "Only one aggregate function is supported";
+					return r;
+				}
+				hasAgg = true;
+				aggFunc = f;
+				++pos;
+				if (!expect(toks, pos, TokenType::LParen)) {
+					r.ok = false;
+					r.error = "Expected '('";
+					return r;
+				}
+				if (toks[pos].type == TokenType::Star) {
+					aggCol = "*";
+					++pos;
+				} else {
+					if (!parseIdentifier(toks, pos, aggCol)) {
+						r.ok = false;
+						r.error = "Expected column name or '*'";
+						return r;
+					}
+				}
+				if (!expect(toks, pos, TokenType::RParen)) {
+					r.ok = false;
+					r.error = "Expected ')'";
+					return r;
+				}
+			}
+
+			if (toks[pos].type == TokenType::Comma) {
+				++pos;
+				continue;
+			}
+			break;
+		}
+		if (selectCols.empty() && !hasAgg) {
 			r.ok = false;
-			r.error = "Only SELECT * supported";
+			r.error = "Expected select list";
 			return r;
 		}
 		if (toks[pos].type != TokenType::FROM) {
@@ -584,17 +717,28 @@ ParseResult parse(const std::string& sql) {
 				r.error = "Invalid value";
 				return r;
 			}
-			r.statement.type = StatementType::SelectWhere;
-			r.statement.tableName = table;
 			r.statement.whereColumn = col;
 			r.statement.whereOp = op;
 			r.statement.whereValue = v;
+		}
+
+		r.statement.tableName = table;
+		if (hasAgg) {
+			r.statement.aggregateFunc = aggFunc;
+			r.statement.columnName = aggCol;
+			if (selectCols.empty()) {
+				r.statement.type = StatementType::SelectAggregate;
+			} else {
+				r.statement.type = StatementType::SelectGroupAggregate;
+				r.statement.groupColumns = std::move(selectCols);
+			}
+			
 			r.ok = true;
 			return r;
 		}
 
-		r.statement.type = StatementType::SelectAll;
-		r.statement.tableName = table;
+		r.statement.type = StatementType::SelectColumns;
+		r.statement.selectColumns = std::move(selectCols);
 		r.ok = true;
 		return r;
 	}

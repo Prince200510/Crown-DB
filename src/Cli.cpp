@@ -159,7 +159,15 @@ void CLI::start() {
         std::cout << " - alter table <table> drop column <col>;\n";
         std::cout << " - insert into <table> values(1, 'prince', 2-2-2026);\n";
         std::cout << " - select * from <table>;\n";
+        std::cout << " - select <col1>, <col2> from <table>;\n";
         std::cout << " - select * from <table> where <col> = <value>;\n";
+        std::cout << " - select <col1>, <col2> from <table> where <col> = <value>;\n";
+        std::cout << " - select count(*) from <table>;\n";
+        std::cout << " - select sum(<int_col>) from <table>;\n";
+        std::cout << " - select avg(<int_col>) from <table>;\n";
+        std::cout << " - select min(<int_or_date_col>) from <table>;\n";
+        std::cout << " - select max(<int_or_date_col>) from <table>;\n";
+        std::cout << " - select <col>, max(<int_or_date_col>) from <table>;\n";
         std::cout << "===============================================================\n";
         std::cout << "Developer Information:\n";
         std::cout << "Developer name: " << developer << "\n";
@@ -227,6 +235,9 @@ void CLI::start() {
 
         const auto start = std::chrono::steady_clock::now();
         bool ok = false;
+		Aggregate_result aggResult;
+		SQLParser::AggregateFunc aggFunc = SQLParser::AggregateFunc::Count;
+		std::string aggColumn;
         switch (parsed.statement.type) {
             case SQLParser::StatementType::CreateDatabase:
                 ok = engine_api.create_database(parsed.statement.databaseName);
@@ -313,6 +324,66 @@ void CLI::start() {
                 ok = engine_api.select_where(parsed.statement.tableName, cond);
                 break;
             }
+            case SQLParser::StatementType::SelectColumns: {
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                Condition cond;
+                const Condition* condPtr = nullptr;
+                if (!parsed.statement.whereColumn.empty()) {
+                    cond.column_name = parsed.statement.whereColumn;
+                    cond.op = parsed.statement.whereOp;
+                    cond.value = parsed.statement.whereValue;
+                    condPtr = &cond;
+                }
+                ok = engine_api.select_columns(parsed.statement.tableName, parsed.statement.selectColumns, condPtr);
+                break;
+            }
+            case SQLParser::StatementType::SelectAggregate: {
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                aggFunc = parsed.statement.aggregateFunc;
+                aggColumn = parsed.statement.columnName;
+                Aggregate_type t = Aggregate_type::COUNT;
+                switch (aggFunc) {
+                    case SQLParser::AggregateFunc::Count: t = Aggregate_type::COUNT; break;
+                    case SQLParser::AggregateFunc::Sum: t = Aggregate_type::SUM; break;
+                    case SQLParser::AggregateFunc::Avg: t = Aggregate_type::AVG; break;
+                    case SQLParser::AggregateFunc::Min: t = Aggregate_type::MIN; break;
+                    case SQLParser::AggregateFunc::Max: t = Aggregate_type::MAX; break;
+                }
+                ok = engine_api.aggregate(parsed.statement.tableName, aggColumn, t, aggResult);
+                break;
+            }
+            case SQLParser::StatementType::SelectGroupAggregate: {
+                if (!engine_api.has_active_database()) {
+                    std::cout << "No database selected. Use: use <database_name>;\n";
+                    continue;
+                }
+                Condition cond;
+                const Condition* condPtr = nullptr;
+                if (!parsed.statement.whereColumn.empty()) {
+                    cond.column_name = parsed.statement.whereColumn;
+                    cond.op = parsed.statement.whereOp;
+                    cond.value = parsed.statement.whereValue;
+                    condPtr = &cond;
+                }
+                aggFunc = parsed.statement.aggregateFunc;
+                aggColumn = parsed.statement.columnName;
+                Aggregate_type t = Aggregate_type::COUNT;
+                switch (aggFunc) {
+                    case SQLParser::AggregateFunc::Count: t = Aggregate_type::COUNT; break;
+                    case SQLParser::AggregateFunc::Sum: t = Aggregate_type::SUM; break;
+                    case SQLParser::AggregateFunc::Avg: t = Aggregate_type::AVG; break;
+                    case SQLParser::AggregateFunc::Min: t = Aggregate_type::MIN; break;
+                    case SQLParser::AggregateFunc::Max: t = Aggregate_type::MAX; break;
+                }
+                ok = engine_api.group_aggregate(parsed.statement.tableName, parsed.statement.groupColumns, aggColumn, t, condPtr);
+                break;
+            }
             default:
                 std::cout << "Unsupported SQL statement\n";
                 continue;
@@ -361,6 +432,45 @@ void CLI::start() {
             case SQLParser::StatementType::SelectWhere:
                 if (!ok) {
                     std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
+                }
+                break;
+            case SQLParser::StatementType::SelectColumns:
+                if (!ok) {
+                    std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
+                }
+                break;
+            case SQLParser::StatementType::SelectAggregate:
+                if (!ok) {
+                    const std::string err = engine_api.get_last_error();
+                    std::cout << (err.empty() ? "Aggregation failed" : err) << " (" << elapsedMs << " ms)\n";
+                    break;
+                }
+                switch (aggFunc) {
+                    case SQLParser::AggregateFunc::Count:
+                        std::cout << aggResult.count << " (" << elapsedMs << " ms)\n";
+                        break;
+                    case SQLParser::AggregateFunc::Sum:
+                        std::cout << aggResult.sum << " (" << elapsedMs << " ms)\n";
+                        break;
+                    case SQLParser::AggregateFunc::Avg:
+                        std::cout << aggResult.avg << " (" << elapsedMs << " ms)\n";
+                        break;
+                    case SQLParser::AggregateFunc::Min:
+                        if (!aggResult.initialized) std::cout << "NULL";
+                        else std::cout << aggResult.min;
+                        std::cout << " (" << elapsedMs << " ms)\n";
+                        break;
+                    case SQLParser::AggregateFunc::Max:
+                        if (!aggResult.initialized) std::cout << "NULL";
+                        else std::cout << aggResult.max;
+                        std::cout << " (" << elapsedMs << " ms)\n";
+                        break;
+                }
+                break;
+            case SQLParser::StatementType::SelectGroupAggregate:
+                if (!ok) {
+                    const std::string err = engine_api.get_last_error();
+                    std::cout << (err.empty() ? "Aggregation failed" : err) << " (" << elapsedMs << " ms)\n";
                 }
                 break;
             default:

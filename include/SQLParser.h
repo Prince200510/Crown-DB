@@ -20,7 +20,18 @@ enum class StatementType {
 	CreateTable,
 	InsertInto,
 	SelectAll,
-	SelectWhere
+	SelectWhere,
+	SelectAggregate,
+	SelectColumns,
+	SelectGroupAggregate
+};
+
+enum class AggregateFunc {
+	Count,
+	Sum,
+	Avg,
+	Min,
+	Max
 };
 
 struct ColumnDef {
@@ -34,6 +45,9 @@ struct Statement {
 	std::string tableName;
 	std::string columnName;
 	int columnType = 0;
+	AggregateFunc aggregateFunc = AggregateFunc::Count;
+	std::vector<std::string> selectColumns;
+	std::vector<std::string> groupColumns;
 	std::string whereColumn;
 	std::string whereOp;
 	std::string whereValue;

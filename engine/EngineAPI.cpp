@@ -206,3 +206,61 @@ bool EngineAPI::select_where(const std::string& table_name, const Condition& con
     const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
     return StorageEngine::select_where(table_path, cond);
 }
+
+bool EngineAPI::select_columns(
+    const std::string& table_name,
+    const std::vector<std::string>& columns,
+    const Condition* cond
+) {
+    last_error.clear();
+    if (current_database_name.empty()) {
+        last_error = "No database selected";
+        return false;
+    }
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    const bool ok = StorageEngine::select_columns(table_path, columns, cond);
+    if (!ok) {
+        last_error = "Select failed";
+    }
+    return ok;
+}
+
+bool EngineAPI::group_aggregate(
+    const std::string& table_name,
+    const std::vector<std::string>& group_columns,
+    const std::string& aggregate_column,
+    Aggregate_type agg_type,
+    const Condition* cond
+) {
+    last_error.clear();
+    if (current_database_name.empty()) {
+        last_error = "No database selected";
+        return false;
+    }
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    const bool ok = StorageEngine::group_aggregate(table_path, group_columns, aggregate_column, agg_type, cond);
+    if (!ok) {
+        last_error = "Aggregation failed";
+    }
+    return ok;
+}
+
+bool EngineAPI::aggregate(
+    const std::string& table_name,
+    const std::string& column_name,
+    Aggregate_type agg_type,
+    Aggregate_result& out
+) {
+    last_error.clear();
+    if (current_database_name.empty()) {
+        last_error = "No database selected";
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + table_name + ".tbl";
+    if (!StorageEngine::aggregate_function(table_path, column_name, agg_type, out)) {
+        last_error = "Aggregation failed";
+        return false;
+    }
+    return true;
+}
