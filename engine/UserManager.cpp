@@ -1,4 +1,5 @@
 #include "UserManager.h"
+#include "Session.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -172,6 +173,7 @@ bool UserManager::login_user(const std::string& username, const std::string& pas
         if(stored_username == username){
             if(wanted_hash == stored_hash){
                 current_user = username;
+                Session::login(username);
                 std::cout << "Login successful. Welcome, " << username << "!\n";
                 return true;
             } else {

@@ -1,6 +1,7 @@
 #include "Cli.h"
 #include "EngineAPI.h"
 #include "SQLParser.h"
+#include "Session.h"
 
 #include <cctype>
 #include <chrono>
@@ -15,6 +16,11 @@
 #endif
 
 void CLI::start() {
+    if (!Session::is_logged_in()) {
+        std::cout << "Please login first\n";
+        return;
+    }
+
     EngineAPI engine_api;
     const std::string version = "1.0";
     const std::string developer = "Prince Maurya";
@@ -170,7 +176,11 @@ void CLI::start() {
     std::string statement;
     while (running) {
         if (statement.empty()) {
-            std::cout << "crownDB client> ";
+            std::cout << "crownDB[" << Session::current_user;
+            if (!Session::current_database.empty()) {
+                std::cout << ":" << Session::current_database;
+            }
+            std::cout << "]> ";
         } else {
             std::cout << "           -> ";
         }
@@ -223,6 +233,9 @@ void CLI::start() {
                 break;
             case SQLParser::StatementType::DropDatabase:
                 ok = engine_api.drop_database(parsed.statement.databaseName);
+                if (ok && Session::current_database == parsed.statement.databaseName) {
+                    Session::current_database.clear();
+                }
                 break;
             case SQLParser::StatementType::DropTable:
                 if (!engine_api.has_active_database()) {
@@ -257,6 +270,9 @@ void CLI::start() {
                 break;
             case SQLParser::StatementType::UseDatabase:
                 ok = engine_api.use_database(parsed.statement.databaseName);
+                if (ok) {
+                    Session::current_database = parsed.statement.databaseName;
+                }
                 break;
             case SQLParser::StatementType::CreateTable: {
                 if (!engine_api.has_active_database()) {
