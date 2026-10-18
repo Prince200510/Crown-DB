@@ -1,27 +1,26 @@
 #include "Cli.h"
-#include "EngineAPI.h"
-#include "SQLParser.h"
-#include "Session.h"
-
 #include <cctype>
 #include <chrono>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <string>
-#include <vector>
-
+#include <utility>
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
+CLI::CLI() : engine_(DatabaseEngine::create()), session_() {}
+
+CLI::CLI(std::shared_ptr<DatabaseEngine> engine, SessionContext session)
+    : engine_(std::move(engine)), session_(std::move(session)) {}
+
 void CLI::start() {
-    if (!Session::is_logged_in()) {
+    if (!session_.is_authenticated()) {
         std::cout << "Please login first\n";
         return;
     }
 
-    EngineAPI engine_api;
     const std::string version = "1.0";
     const std::string developer = "Prince Maurya";
     const std::string contact = "+91 9987742369";
@@ -38,11 +37,9 @@ void CLI::start() {
         while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) {
             text.pop_back();
         }
-
         if (!text.empty() && text.back() == ';') {
             text.pop_back();
         }
-
         std::string out;
         out.reserve(text.size());
         bool inSpace = false;
@@ -63,22 +60,6 @@ void CLI::start() {
         return out;
     };
 
-    auto cleanInput = [](std::string text) {
-        while (!text.empty() && std::isspace(static_cast<unsigned char>(text.front()))) {
-            text.erase(text.begin());
-        }
-        while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) {
-            text.pop_back();
-        }
-        if (!text.empty() && text.back() == ';') {
-            text.pop_back();
-        }
-        while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) {
-            text.pop_back();
-        }
-        return text;
-    };
-
     auto endsWithSemicolon = [](const std::string& text) {
         size_t end = text.size();
         while (end > 0 && std::isspace(static_cast<unsigned char>(text[end - 1]))) {
@@ -88,37 +69,29 @@ void CLI::start() {
     };
 
     bool running = true;
-
     std::map<std::string, std::function<void(std::string)>> commands;
 
-    const auto addCommand = [&](std::string rawKey, std::function<void(std::string)> handler) {
+     const auto addCommand = [&](std::string rawKey, std::function<void(std::string)> handler) {
         commands.emplace(normalize(std::move(rawKey)), std::move(handler));
     };
 
     const auto clearScreen = [&]() {
-        #ifdef _WIN32
-                HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
-                if (console == INVALID_HANDLE_VALUE) {
-                    return;
-                }
-            
-                CONSOLE_SCREEN_BUFFER_INFO csbi;
-                if (!GetConsoleScreenBufferInfo(console, &csbi)) {
-                    return;
-                }
-            
-                const DWORD cellCount = static_cast<DWORD>(csbi.dwSize.X) * static_cast<DWORD>(csbi.dwSize.Y);
-                DWORD count = 0;
-                const COORD homeCoords = {0, 0};
-            
-                FillConsoleOutputCharacterA(console, ' ', cellCount, homeCoords, &count);
-                FillConsoleOutputAttribute(console, csbi.wAttributes, cellCount, homeCoords, &count);
-                SetConsoleCursorPosition(console, homeCoords);
-        #else
-                std::cout << "\033[2J\033[H";
-        #endif
-                std::cout.flush();
-            };
+#ifdef _WIN32
+        HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        if (!GetConsoleScreenBufferInfo(console, &csbi)) return;
+        const DWORD cellCount = static_cast<DWORD>(csbi.dwSize.X) * static_cast<DWORD>(csbi.dwSize.Y);
+        DWORD count = 0;
+        const COORD homeCoords = {0, 0};
+        FillConsoleOutputCharacterA(console, ' ', cellCount, homeCoords, &count);
+        FillConsoleOutputAttribute(console, csbi.wAttributes, cellCount, homeCoords, &count);
+        SetConsoleCursorPosition(console, homeCoords);
+#else
+        std::cout << "\033[2J\033[H";
+#endif
+        std::cout.flush();
+    };
 
     addCommand("crowndb --version", [&](std::string) {
         std::cout << "version :" << version << "\n";
@@ -182,11 +155,12 @@ void CLI::start() {
 
     std::string input;
     std::string statement;
+
     while (running) {
         if (statement.empty()) {
-            std::cout << "crownDB[" << Session::current_user;
-            if (!Session::current_database.empty()) {
-                std::cout << ":" << Session::current_database;
+            std::cout << "crownDB[" << session_.user();
+            if (session_.has_active_database()) {
+                std::cout << ":" << session_.current_database();
             }
             std::cout << "]> ";
         } else {
@@ -198,9 +172,8 @@ void CLI::start() {
         }
 
         if (statement.empty()) {
-            const std::string rawCleanLine = cleanInput(input);
-            const std::string keyLine = normalize(rawCleanLine);
-            auto it = commands.find(keyLine);
+            std::string single = normalize(input);
+            auto it = commands.find(single);
             if (it != commands.end()) {
                 it->second(input);
                 continue;
@@ -208,7 +181,7 @@ void CLI::start() {
         }
 
         if (!statement.empty()) {
-            statement.push_back(' ');
+            statement += " ";
         }
         statement += input;
 
@@ -216,265 +189,26 @@ void CLI::start() {
             continue;
         }
 
-        const std::string rawStatement = statement;
-        const std::string rawClean = cleanInput(statement);
-        const std::string key = normalize(rawClean);
+        std::string fullSql = std::move(statement);
         statement.clear();
 
-        auto it = commands.find(key);
-        if (it != commands.end()) {
-            it->second(rawClean);
-            continue;
+        std::string checkExit = normalize(fullSql);
+        if (checkExit == "EXIT" || checkExit == "QUIT") {
+            std::cout << "Goodbye!\n";
+            running = false;
+            break;
         }
 
-        const auto parsed = SQLParser::parse(rawStatement);
-        if (!parsed.ok) {
-            std::cout << parsed.error << "\n";
-            continue;
-        }
+        auto start_time = std::chrono::high_resolution_clock::now();
+        QueryResult result = engine_->execute(session_, fullSql);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
 
-        const auto start = std::chrono::steady_clock::now();
-        bool ok = false;
-		Aggregate_result aggResult;
-		SQLParser::AggregateFunc aggFunc = SQLParser::AggregateFunc::Count;
-		std::string aggColumn;
-        switch (parsed.statement.type) {
-            case SQLParser::StatementType::CreateDatabase:
-                ok = engine_api.create_database(parsed.statement.databaseName);
-                break;
-            case SQLParser::StatementType::DropDatabase:
-                ok = engine_api.drop_database(parsed.statement.databaseName);
-                if (ok && Session::current_database == parsed.statement.databaseName) {
-                    Session::current_database.clear();
-                }
-                break;
-            case SQLParser::StatementType::DropTable:
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                ok = engine_api.drop_table(parsed.statement.tableName);
-                break;
-            case SQLParser::StatementType::TruncateTable:
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                ok = engine_api.truncate_table(parsed.statement.tableName);
-                break;
-            case SQLParser::StatementType::AlterAddColumn: {
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                const int baseType = (parsed.statement.columnType & 0xFFFF);
-                const int size = (parsed.statement.columnType >> 16);
-                ok = engine_api.alter_add_column(parsed.statement.tableName, parsed.statement.columnName, baseType, size);
-                break;
-            }
-            case SQLParser::StatementType::AlterDropColumn:
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                ok = engine_api.alter_drop_column(parsed.statement.tableName, parsed.statement.columnName);
-                break;
-            case SQLParser::StatementType::UseDatabase:
-                ok = engine_api.use_database(parsed.statement.databaseName);
-                if (ok) {
-                    Session::current_database = parsed.statement.databaseName;
-                }
-                break;
-            case SQLParser::StatementType::CreateTable: {
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                std::vector<std::pair<std::string, int>> cols;
-                cols.reserve(parsed.statement.columns.size());
-                for (const auto& c : parsed.statement.columns) {
-                    cols.emplace_back(c.name, c.type);
-                }
-                ok = engine_api.create_table(parsed.statement.tableName, cols);
-                break;
-            }
-            case SQLParser::StatementType::InsertInto:
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                ok = engine_api.insert_into(parsed.statement.tableName, parsed.statement.values);
-                break;
-            case SQLParser::StatementType::SelectAll:
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                ok = engine_api.select_all(parsed.statement.tableName);
-                break;
-            case SQLParser::StatementType::SelectWhere: {
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                Condition cond;
-                cond.column_name = parsed.statement.whereColumn;
-                cond.op = parsed.statement.whereOp;
-                cond.value = parsed.statement.whereValue;
-                ok = engine_api.select_where(parsed.statement.tableName, cond);
-                break;
-            }
-            case SQLParser::StatementType::SelectColumns: {
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                Condition cond;
-                const Condition* condPtr = nullptr;
-                if (!parsed.statement.whereColumn.empty()) {
-                    cond.column_name = parsed.statement.whereColumn;
-                    cond.op = parsed.statement.whereOp;
-                    cond.value = parsed.statement.whereValue;
-                    condPtr = &cond;
-                }
-                ok = engine_api.select_columns(parsed.statement.tableName, parsed.statement.selectColumns, condPtr);
-                break;
-            }
-            case SQLParser::StatementType::SelectAggregate: {
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                aggFunc = parsed.statement.aggregateFunc;
-                aggColumn = parsed.statement.columnName;
-                Aggregate_type t = Aggregate_type::COUNT;
-                switch (aggFunc) {
-                    case SQLParser::AggregateFunc::Count: t = Aggregate_type::COUNT; break;
-                    case SQLParser::AggregateFunc::Sum: t = Aggregate_type::SUM; break;
-                    case SQLParser::AggregateFunc::Avg: t = Aggregate_type::AVG; break;
-                    case SQLParser::AggregateFunc::Min: t = Aggregate_type::MIN; break;
-                    case SQLParser::AggregateFunc::Max: t = Aggregate_type::MAX; break;
-                }
-                ok = engine_api.aggregate(parsed.statement.tableName, aggColumn, t, aggResult);
-                break;
-            }
-            case SQLParser::StatementType::SelectGroupAggregate: {
-                if (!engine_api.has_active_database()) {
-                    std::cout << "No database selected. Use: use <database_name>;\n";
-                    continue;
-                }
-                Condition cond;
-                const Condition* condPtr = nullptr;
-                if (!parsed.statement.whereColumn.empty()) {
-                    cond.column_name = parsed.statement.whereColumn;
-                    cond.op = parsed.statement.whereOp;
-                    cond.value = parsed.statement.whereValue;
-                    condPtr = &cond;
-                }
-                aggFunc = parsed.statement.aggregateFunc;
-                aggColumn = parsed.statement.columnName;
-                Aggregate_type t = Aggregate_type::COUNT;
-                switch (aggFunc) {
-                    case SQLParser::AggregateFunc::Count: t = Aggregate_type::COUNT; break;
-                    case SQLParser::AggregateFunc::Sum: t = Aggregate_type::SUM; break;
-                    case SQLParser::AggregateFunc::Avg: t = Aggregate_type::AVG; break;
-                    case SQLParser::AggregateFunc::Min: t = Aggregate_type::MIN; break;
-                    case SQLParser::AggregateFunc::Max: t = Aggregate_type::MAX; break;
-                }
-                ok = engine_api.group_aggregate(parsed.statement.tableName, parsed.statement.groupColumns, aggColumn, t, condPtr);
-                break;
-            }
-            default:
-                std::cout << "Unsupported SQL statement\n";
-                continue;
-        }
-        const auto end = std::chrono::steady_clock::now();
-        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-        switch (parsed.statement.type) {
-            case SQLParser::StatementType::CreateDatabase:
-                std::cout << (ok ? "Query OK, database created" : "Database already exists") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::DropDatabase:
-                std::cout << (ok ? "Query OK, database dropped" : "Database does not exist") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::DropTable:
-                std::cout << (ok ? "Query OK, table dropped" : "Table does not exist") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::TruncateTable:
-                std::cout << (ok ? "Query OK, table truncated" : "Truncate failed") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::AlterAddColumn:
-                std::cout << (ok ? "Query OK, column added" : "Alter failed") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::AlterDropColumn:
-                std::cout << (ok ? "Query OK, column dropped" : "Alter failed") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::UseDatabase:
-                if (ok) {
-                    std::cout << "Database changed" << " (" << elapsedMs << " ms)\n";
-                } else {
-                    const std::string err = engine_api.get_last_error();
-                    std::cout << (err.empty() ? "Use failed" : err) << " (" << elapsedMs << " ms)\n";
-                }
-                break;
-            case SQLParser::StatementType::CreateTable:
-                std::cout << (ok ? "Query OK, table created" : "Failed to create table") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::InsertInto:
-                std::cout << (ok ? "Query OK, 1 row inserted" : "Insert failed") << " (" << elapsedMs << " ms)\n";
-                break;
-            case SQLParser::StatementType::SelectAll:
-                if (!ok) {
-                    std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
-                }
-                break;
-            case SQLParser::StatementType::SelectWhere:
-                if (!ok) {
-                    std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
-                }
-                break;
-            case SQLParser::StatementType::SelectColumns:
-                if (!ok) {
-                    std::cout << "Select failed" << " (" << elapsedMs << " ms)\n";
-                }
-                break;
-            case SQLParser::StatementType::SelectAggregate:
-                if (!ok) {
-                    const std::string err = engine_api.get_last_error();
-                    std::cout << (err.empty() ? "Aggregation failed" : err) << " (" << elapsedMs << " ms)\n";
-                    break;
-                }
-                switch (aggFunc) {
-                    case SQLParser::AggregateFunc::Count:
-                        std::cout << aggResult.count << " (" << elapsedMs << " ms)\n";
-                        break;
-                    case SQLParser::AggregateFunc::Sum:
-                        std::cout << aggResult.sum << " (" << elapsedMs << " ms)\n";
-                        break;
-                    case SQLParser::AggregateFunc::Avg:
-                        std::cout << aggResult.avg << " (" << elapsedMs << " ms)\n";
-                        break;
-                    case SQLParser::AggregateFunc::Min:
-                        if (!aggResult.initialized) std::cout << "NULL";
-                        else std::cout << aggResult.min;
-                        std::cout << " (" << elapsedMs << " ms)\n";
-                        break;
-                    case SQLParser::AggregateFunc::Max:
-                        if (!aggResult.initialized) std::cout << "NULL";
-                        else std::cout << aggResult.max;
-                        std::cout << " (" << elapsedMs << " ms)\n";
-                        break;
-                }
-                break;
-            case SQLParser::StatementType::SelectGroupAggregate:
-                if (!ok) {
-                    const std::string err = engine_api.get_last_error();
-                    std::cout << (err.empty() ? "Aggregation failed" : err) << " (" << elapsedMs << " ms)\n";
-                }
-                break;
-            default:
-                break;
+        if (!result.is_ok()) {
+            std::cerr << result.error().message() << "\n";
+        } else {
+            std::cout << result.to_string();
+            std::cout << "(" << elapsed.count() << " ms)\n";
         }
     }
 }

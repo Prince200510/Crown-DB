@@ -141,7 +141,7 @@ public:
             return QueryResult::success(1);
         }
 
-        std::ostringstream out;
+                std::ostringstream out;
         struct CoutGuard {
             std::ostream& os;
             std::streambuf* old;
@@ -153,10 +153,7 @@ public:
             if (!api_.select_all(st.tableName)) {
                 return QueryResult::failure(ErrorCode::TableNotFound, "Select failed: Table not found or invalid schema");
             }
-            std::vector<ColumnMetadata> meta;
-            meta.emplace_back("output", DataType::Text);
-            std::vector<std::vector<TypedValue>> rows;
-            return QueryResult::table(std::move(meta), std::move(rows));
+            return QueryResult::raw(out.str());
         }
 
         if (st.type == SQLParser::StatementType::SelectWhere) {
@@ -167,10 +164,7 @@ public:
             if (!api_.select_where(st.tableName, cond)) {
                 return QueryResult::failure(ErrorCode::TableNotFound, "Select failed");
             }
-            std::vector<ColumnMetadata> meta;
-            meta.emplace_back("output", DataType::Text);
-            std::vector<std::vector<TypedValue>> rows;
-            return QueryResult::table(std::move(meta), std::move(rows));
+            return QueryResult::raw(out.str());
         }
 
         if (st.type == SQLParser::StatementType::SelectColumns) {
@@ -185,10 +179,7 @@ public:
             if (!api_.select_columns(st.tableName, st.selectColumns, condPtr)) {
                 return QueryResult::failure(ErrorCode::TableNotFound, "Select failed");
             }
-            std::vector<ColumnMetadata> meta;
-            meta.emplace_back("output", DataType::Text);
-            std::vector<std::vector<TypedValue>> rows;
-            return QueryResult::table(std::move(meta), std::move(rows));
+            return QueryResult::raw(out.str());
         }
 
         if (st.type == SQLParser::StatementType::SelectAggregate) {
@@ -196,23 +187,19 @@ public:
             if (!api_.aggregate(st.tableName, st.columnName, to_agg_type(st.aggregateFunc), agg)) {
                 return QueryResult::failure(ErrorCode::TableNotFound, api_.get_last_error());
             }
-            std::vector<ColumnMetadata> meta;
-            meta.emplace_back("result", DataType::Float);
-            std::vector<std::vector<TypedValue>> rows;
-            std::vector<TypedValue> r;
+            std::string agg_text;
             if (st.aggregateFunc == SQLParser::AggregateFunc::Count) {
-                r.emplace_back(agg.count);
+                agg_text = std::to_string(agg.count) + "\n";
             } else if (st.aggregateFunc == SQLParser::AggregateFunc::Sum) {
-                r.emplace_back(agg.sum);
+                agg_text = std::to_string(agg.sum) + "\n";
             } else if (st.aggregateFunc == SQLParser::AggregateFunc::Avg) {
-                r.emplace_back(agg.avg);
+                agg_text = std::to_string(agg.avg) + "\n";
             } else if (st.aggregateFunc == SQLParser::AggregateFunc::Min) {
-                r.emplace_back(agg.min);
+                agg_text = (agg.initialized ? std::to_string(agg.min) : "NULL") + "\n";
             } else {
-                r.emplace_back(agg.max);
+                agg_text = (agg.initialized ? std::to_string(agg.max) : "NULL") + "\n";
             }
-            rows.push_back(std::move(r));
-            return QueryResult::table(std::move(meta), std::move(rows));
+            return QueryResult::raw(std::move(agg_text));
         }
 
         if (st.type == SQLParser::StatementType::SelectGroupAggregate) {
@@ -227,16 +214,12 @@ public:
             if (!api_.group_aggregate(st.tableName, st.groupColumns, st.columnName, to_agg_type(st.aggregateFunc), condPtr)) {
                 return QueryResult::failure(ErrorCode::TableNotFound, "Group aggregate failed");
             }
-            std::vector<ColumnMetadata> meta;
-            meta.emplace_back("output", DataType::Text);
-            std::vector<std::vector<TypedValue>> rows;
-            return QueryResult::table(std::move(meta), std::move(rows));
+            return QueryResult::raw(out.str());
         }
 
         return QueryResult::failure(ErrorCode::SyntaxError, "Unsupported SQL statement");
     }
 };
-
 }
 
 std::unique_ptr<DatabaseEngine> DatabaseEngine::create() {

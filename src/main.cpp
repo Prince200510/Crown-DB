@@ -1,10 +1,14 @@
 #include "Cli.h"
-#include "UserManager.h"
-
+#include "DatabaseEngine.h"
+#include "SessionContext.h"
 #include <iostream>
+#include <memory>
 #include <string>
 
 int main() {
+    std::shared_ptr<DatabaseEngine> engine = DatabaseEngine::create();
+    SessionContext session;
+
     while (true) {
         std::cout << "Type '1 to register' to create a new user or '2 tologin' to access an existing account:\n";
         std::cout << "crownDB client> ";
@@ -22,7 +26,13 @@ int main() {
             std::getline(std::cin, u);
             std::cout << "Password: ";
             std::getline(std::cin, p);
-            UserManager::register_user(u, p);
+
+            DatabaseError err;
+            if (engine->register_user(u, p, err)) {
+                std::cout << "User registered successfully.\n";
+            } else {
+                std::cerr << err.message() << "\n";
+            }
             continue;
         }
 
@@ -33,14 +43,18 @@ int main() {
             std::cout << "Password: ";
             std::getline(std::cin, p);
 
-            if (UserManager::login_user(u, p)) {
+            DatabaseError err;
+            if (engine->authenticate_user(u, p, session, err)) {
+                std::cout << "Login successful. Welcome, " << u << "!\n";
                 break;
+            } else {
+                std::cerr << err.message() << "\n";
             }
             continue;
         }
     }
 
-    CLI cli;
+    CLI cli(engine, std::move(session));
     cli.start();
     return 0;
 }

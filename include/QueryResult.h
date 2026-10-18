@@ -16,14 +16,30 @@ private:
     std::vector<std::vector<TypedValue>> rows_;
     size_t rows_affected_;
     bool has_rows_;
+    std::string raw_output_;
+    bool has_raw_output_;
 
 public:
-    QueryResult() : error_(DatabaseError::ok()), rows_affected_(0), has_rows_(false) {}
+    QueryResult() : error_(DatabaseError::ok()),
+          rows_affected_(0),
+          has_rows_(false),
+          raw_output_(""),
+          has_raw_output_(false) {}
 
     static QueryResult success(size_t rows_affected = 0) {
         QueryResult res;
         res.error_ = DatabaseError::ok();
         res.rows_affected_ = rows_affected;
+        res.has_rows_ = false;
+        res.has_raw_output_ = false;
+        return res;
+    }
+
+    static QueryResult raw(std::string text) {
+        QueryResult res;
+        res.error_ = DatabaseError::ok();
+        res.raw_output_ = std::move(text);
+        res.has_raw_output_ = true;
         res.has_rows_ = false;
         return res;
     }
@@ -33,6 +49,7 @@ public:
         res.error_ = std::move(error);
         res.rows_affected_ = 0;
         res.has_rows_ = false;
+        res.has_raw_output_ = false;
         return res;
     }
 
@@ -45,6 +62,7 @@ public:
         res.error_ = DatabaseError::ok();
         res.rows_affected_ = rows.size();
         res.has_rows_ = true;
+        res.has_raw_output_ = false;
         res.columns_ = std::move(columns);
         res.rows_ = std::move(rows);
         return res;
@@ -59,16 +77,20 @@ public:
 
     std::string to_string() const {
         if (!is_ok()) {
-            return "Error: " + error_.message();
+            return "Error: " + error_.message() + "\n";
+        }
+
+        if (has_raw_output_) {
+            return raw_output_;
         }
 
         if (!has_rows_) {
-            return "Query OK, " + std::to_string(rows_affected_) + " row(s) affected";
+            return "Query OK, " + std::to_string(rows_affected_) + " row(s) affected\n";
         }
 
         const size_t col_count = columns_.size();
         if (col_count == 0) {
-            return "Empty set";
+            return "Empty set\n";
         }
 
         std::vector<size_t> widths(col_count, 0);
