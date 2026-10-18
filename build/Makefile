@@ -189,6 +189,30 @@ engine/Database.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\crowndb_core.dir\build.make CMakeFiles/crowndb_core.dir/engine/Database.cpp.s
 .PHONY : engine/Database.cpp.s
 
+engine/DatabaseEngine.obj: engine/DatabaseEngine.cpp.obj
+.PHONY : engine/DatabaseEngine.obj
+
+# target to build an object file
+engine/DatabaseEngine.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\crowndb_core.dir\build.make CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj
+.PHONY : engine/DatabaseEngine.cpp.obj
+
+engine/DatabaseEngine.i: engine/DatabaseEngine.cpp.i
+.PHONY : engine/DatabaseEngine.i
+
+# target to preprocess a source file
+engine/DatabaseEngine.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\crowndb_core.dir\build.make CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.i
+.PHONY : engine/DatabaseEngine.cpp.i
+
+engine/DatabaseEngine.s: engine/DatabaseEngine.cpp.s
+.PHONY : engine/DatabaseEngine.s
+
+# target to generate assembly for a file
+engine/DatabaseEngine.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\crowndb_core.dir\build.make CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.s
+.PHONY : engine/DatabaseEngine.cpp.s
+
 engine/EngineAPI.obj: engine/EngineAPI.cpp.obj
 .PHONY : engine/EngineAPI.obj
 
@@ -491,6 +515,9 @@ help:
 	@echo ... engine/Database.obj
 	@echo ... engine/Database.i
 	@echo ... engine/Database.s
+	@echo ... engine/DatabaseEngine.obj
+	@echo ... engine/DatabaseEngine.i
+	@echo ... engine/DatabaseEngine.s
 	@echo ... engine/EngineAPI.obj
 	@echo ... engine/EngineAPI.i
 	@echo ... engine/EngineAPI.s

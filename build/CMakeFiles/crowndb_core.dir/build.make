@@ -209,11 +209,26 @@ CMakeFiles/crowndb_core.dir/engine/Table.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/crowndb_core.dir/engine/Table.cpp.s"
 	P:\mysys2cpp\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S P:\C++\crownDB\engine\Table.cpp -o CMakeFiles\crowndb_core.dir\engine\Table.cpp.s
 
+CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj: CMakeFiles/crowndb_core.dir/flags.make
+CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj: CMakeFiles/crowndb_core.dir/includes_CXX.rsp
+CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj: P:/C++/crownDB/engine/DatabaseEngine.cpp
+CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj: CMakeFiles/crowndb_core.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=P:\C++\crownDB\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj"
+	P:\mysys2cpp\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj -MF CMakeFiles\crowndb_core.dir\engine\DatabaseEngine.cpp.obj.d -o CMakeFiles\crowndb_core.dir\engine\DatabaseEngine.cpp.obj -c P:\C++\crownDB\engine\DatabaseEngine.cpp
+
+CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.i"
+	P:\mysys2cpp\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E P:\C++\crownDB\engine\DatabaseEngine.cpp > CMakeFiles\crowndb_core.dir\engine\DatabaseEngine.cpp.i
+
+CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.s"
+	P:\mysys2cpp\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S P:\C++\crownDB\engine\DatabaseEngine.cpp -o CMakeFiles\crowndb_core.dir\engine\DatabaseEngine.cpp.s
+
 CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj: CMakeFiles/crowndb_core.dir/flags.make
 CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj: CMakeFiles/crowndb_core.dir/includes_CXX.rsp
 CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj: P:/C++/crownDB/lib/src/CrownDB.cpp
 CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj: CMakeFiles/crowndb_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=P:\C++\crownDB\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=P:\C++\crownDB\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj"
 	P:\mysys2cpp\ucrt64\bin\c++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj -MF CMakeFiles\crowndb_core.dir\lib\src\CrownDB.cpp.obj.d -o CMakeFiles\crowndb_core.dir\lib\src\CrownDB.cpp.obj -c P:\C++\crownDB\lib\src\CrownDB.cpp
 
 CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.i: cmake_force
@@ -235,6 +250,7 @@ crowndb_core_OBJECTS = \
 "CMakeFiles/crowndb_core.dir/engine/Session.cpp.obj" \
 "CMakeFiles/crowndb_core.dir/engine/Database.cpp.obj" \
 "CMakeFiles/crowndb_core.dir/engine/Table.cpp.obj" \
+"CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj" \
 "CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj"
 
 # External object files for target crowndb_core
@@ -249,10 +265,11 @@ lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/engine/UserManager.cpp.obj
 lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/engine/Session.cpp.obj
 lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/engine/Database.cpp.obj
 lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/engine/Table.cpp.obj
+lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj
 lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj
 lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/build.make
 lib/libcrowndb_core.a: CMakeFiles/crowndb_core.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=P:\C++\crownDB\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Linking CXX static library lib\libcrowndb_core.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=P:\C++\crownDB\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX static library lib\libcrowndb_core.a"
 	$(CMAKE_COMMAND) -P CMakeFiles\crowndb_core.dir\cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles\crowndb_core.dir\link.txt --verbose=$(VERBOSE)
 

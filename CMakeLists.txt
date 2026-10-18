@@ -28,6 +28,7 @@ set(CORE_SOURCES
     engine/Session.cpp
     engine/Database.cpp
     engine/Table.cpp
+    engine/DatabaseEngine.cpp
     lib/src/CrownDB.cpp
 )
 
@@ -46,6 +47,7 @@ set(CORE_HEADERS
     include/Types.h
     include/ColumnMetadata.h
     include/QueryResult.h
+    include/DatabaseEngine.h
     lib/include/Crowndb.h
 )
 

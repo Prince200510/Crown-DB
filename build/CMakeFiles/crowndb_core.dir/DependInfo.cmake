@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "P:/C++/crownDB/engine/Database.cpp" "CMakeFiles/crowndb_core.dir/engine/Database.cpp.obj" "gcc" "CMakeFiles/crowndb_core.dir/engine/Database.cpp.obj.d"
+  "P:/C++/crownDB/engine/DatabaseEngine.cpp" "CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj" "gcc" "CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj.d"
   "P:/C++/crownDB/engine/EngineAPI.cpp" "CMakeFiles/crowndb_core.dir/engine/EngineAPI.cpp.obj" "gcc" "CMakeFiles/crowndb_core.dir/engine/EngineAPI.cpp.obj.d"
   "P:/C++/crownDB/engine/Session.cpp" "CMakeFiles/crowndb_core.dir/engine/Session.cpp.obj" "gcc" "CMakeFiles/crowndb_core.dir/engine/Session.cpp.obj.d"
   "P:/C++/crownDB/engine/StorageEngine.cpp" "CMakeFiles/crowndb_core.dir/engine/StorageEngine.cpp.obj" "gcc" "CMakeFiles/crowndb_core.dir/engine/StorageEngine.cpp.obj.d"

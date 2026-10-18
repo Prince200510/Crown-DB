@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
   "CMakeFiles/crowndb_core.dir/engine/Database.cpp.obj"
   "CMakeFiles/crowndb_core.dir/engine/Database.cpp.obj.d"
+  "CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj"
+  "CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj.d"
   "CMakeFiles/crowndb_core.dir/engine/EngineAPI.cpp.obj"
   "CMakeFiles/crowndb_core.dir/engine/EngineAPI.cpp.obj.d"
   "CMakeFiles/crowndb_core.dir/engine/Session.cpp.obj"
