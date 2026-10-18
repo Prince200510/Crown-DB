@@ -32,14 +32,23 @@ enum class TokenType {
 	COLUMN,
 	INT,
 	VARCHAR,
-	DATE
-	,
+	DATE,
 	WHERE,
 	COUNT,
 	SUM,
 	AVG,
 	MIN,
 	MAX,
+	FLOAT,
+	DOUBLE,
+	BOOL,
+	BOOLEAN,
+	TEXT,
+	PRIMARY,
+	KEY,
+	NOT,
+	NULL_VAL,
+	UNIQUE,
 	EQ,
 	NE,
 	LT,
@@ -80,6 +89,18 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 		if (upperIdent == "TABLE") return TokenType::TABLE;
 		if (upperIdent == "USE") return TokenType::USE;
 		if (upperIdent == "INSERT") return TokenType::INSERT;
+		if (upperIdent == "FLOAT") return TokenType::FLOAT;
+		if (upperIdent == "DOUBLE") return TokenType::DOUBLE;
+		if (upperIdent == "REAL") return TokenType::FLOAT;
+		if (upperIdent == "BOOL") return TokenType::BOOL;
+		if (upperIdent == "BOOLEAN") return TokenType::BOOL;
+		if (upperIdent == "TEXT") return TokenType::TEXT;
+		if (upperIdent == "INTEGER") return TokenType::INT;
+		if (upperIdent == "PRIMARY") return TokenType::PRIMARY;
+		if (upperIdent == "KEY") return TokenType::KEY;
+		if (upperIdent == "NOT") return TokenType::NOT;
+		if (upperIdent == "NULL") return TokenType::NULL_VAL;
+		if (upperIdent == "UNIQUE") return TokenType::UNIQUE;
 		if (upperIdent == "INTO") return TokenType::INTO;
 		if (upperIdent == "VALUES") return TokenType::VALUES;
 		if (upperIdent == "SELECT") return TokenType::SELECT;
@@ -121,13 +142,26 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 			continue;
 		}
 
-		if (std::isdigit(ch)) {
+				if (std::isdigit(ch)) {
 			size_t start = i;
 			++i;
+			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
+			if (i < sql.size() && sql[i] == '.' && i + 1 < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i + 1]))) {
+				++i;
+				while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
+			}
+			push(TokenType::Number, sql.substr(start, i - start));
+			continue;
+		}
+
+		if (ch == '.' && i + 1 < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i + 1]))) {
+			size_t start = i;
+			i += 2;
 			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
 			push(TokenType::Number, sql.substr(start, i - start));
 			continue;
 		}
+
 
 		if (sql[i] == '\'' || sql[i] == '"') {
 			const char quote = sql[i];
@@ -188,11 +222,13 @@ static bool parseIdentifier(const std::vector<Token>& toks, size_t& pos, std::st
 	++pos;
 	return true;
 }
-
 static bool parseTypeSpec(const std::vector<Token>& toks, size_t& pos, int& outType) {
 	constexpr int TYPE_INT = 1;
 	constexpr int TYPE_VARCHAR = 2;
 	constexpr int TYPE_DATE = 3;
+	constexpr int TYPE_FLOAT = 4;
+	constexpr int TYPE_BOOL = 5;
+	constexpr int TYPE_TEXT = 6;
 
 	if (toks[pos].type == TokenType::INT) {
 		++pos;
@@ -202,6 +238,21 @@ static bool parseTypeSpec(const std::vector<Token>& toks, size_t& pos, int& outT
 	if (toks[pos].type == TokenType::DATE) {
 		++pos;
 		outType = TYPE_DATE;
+		return true;
+	}
+	if (toks[pos].type == TokenType::FLOAT || toks[pos].type == TokenType::DOUBLE) {
+		++pos;
+		outType = TYPE_FLOAT;
+		return true;
+	}
+	if (toks[pos].type == TokenType::BOOL || toks[pos].type == TokenType::BOOLEAN) {
+		++pos;
+		outType = TYPE_BOOL;
+		return true;
+	}
+	if (toks[pos].type == TokenType::TEXT) {
+		++pos;
+		outType = TYPE_TEXT;
 		return true;
 	}
 	if (toks[pos].type == TokenType::VARCHAR) {
@@ -336,7 +387,7 @@ ParseResult parse(const std::string& sql) {
 				r.error = "Expected '('";
 				return r;
 			}
-			std::vector<ColumnDef> cols;
+						std::vector<ColumnDef> cols;
 			while (true) {
 				std::string colName;
 				if (!parseIdentifier(toks, pos, colName)) {
@@ -350,13 +401,46 @@ ParseResult parse(const std::string& sql) {
 					r.error = "Invalid column type";
 					return r;
 				}
-				cols.push_back({colName, type});
+
+				ColumnDef col;
+				col.name = std::move(colName);
+				col.type = type;
+
+				while (pos < toks.size()) {
+					if (toks[pos].type == TokenType::PRIMARY) {
+						++pos;
+						if (toks[pos].type == TokenType::KEY) {
+							++pos;
+						}
+						col.is_primary_key = true;
+						col.is_not_null = true;
+						col.is_unique = true;
+						continue;
+					}
+					if (toks[pos].type == TokenType::NOT) {
+						++pos;
+						if (toks[pos].type == TokenType::NULL_VAL) {
+							++pos;
+						}
+						col.is_not_null = true;
+						continue;
+					}
+					if (toks[pos].type == TokenType::UNIQUE) {
+						++pos;
+						col.is_unique = true;
+						continue;
+					}
+					break;
+				}
+
+				cols.push_back(std::move(col));
 				if (toks[pos].type == TokenType::Comma) {
 					++pos;
 					continue;
 				}
 				break;
 			}
+
 			if (!expect(toks, pos, TokenType::RParen)) {
 				r.ok = false;
 				r.error = "Expected ')'";

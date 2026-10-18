@@ -1,4 +1,3 @@
-
 #ifndef SQL_PARSER_H
 #define SQL_PARSER_H
 
@@ -37,6 +36,9 @@ enum class AggregateFunc {
 struct ColumnDef {
 	std::string name;
 	int type;
+	bool is_primary_key = false;
+	bool is_not_null = false;
+	bool is_unique = false;
 };
 
 struct Statement {

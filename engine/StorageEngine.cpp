@@ -19,6 +19,10 @@ struct Column {
 constexpr int TYPE_INT = 1;
 constexpr int TYPE_VARCHAR = 2;
 constexpr int TYPE_DATE = 3;
+constexpr int TYPE_FLOAT = 4;
+constexpr int TYPE_BOOL = 5;
+constexpr int TYPE_TEXT = 6;
+
 }
 
 void StorageEngine::create_database_file(const string& path) {
@@ -346,10 +350,12 @@ bool StorageEngine::insert_row(const std::string& table_path, const std::vector<
     }
 
     file.seekp(0, std::ios::end);
-
     constexpr int TYPE_INT = 1;
     constexpr int TYPE_VARCHAR = 2;
     constexpr int TYPE_DATE = 3;
+    constexpr int TYPE_FLOAT = 4;
+    constexpr int TYPE_BOOL = 5;
+    constexpr int TYPE_TEXT = 6;
 
     for (int i = 0; i < column_count; i++) {
         std::string v = trimCopy(values[static_cast<size_t>(i)]);
@@ -374,14 +380,34 @@ bool StorageEngine::insert_row(const std::string& table_path, const std::vector<
                 return false;
             }
             file.write(reinterpret_cast<const char*>(&date_value), sizeof(date_value));
-        } else if (type == TYPE_VARCHAR) {
+        } else if (type == TYPE_FLOAT) {
+            double float_value = 0.0;
+            try {
+                float_value = std::stod(v);
+            } catch (...) {
+                std::cerr << "Invalid FLOAT value: " << v << "\n";
+                return false;
+            }
+            file.write(reinterpret_cast<const char*>(&float_value), sizeof(float_value));
+        } else if (type == TYPE_BOOL) {
+            uint8_t byte_val = 0;
+            if (v == "1" || v == "true" || v == "TRUE" || v == "True") {
+                byte_val = 1;
+            } else if (v == "0" || v == "false" || v == "FALSE" || v == "False") {
+                byte_val = 0;
+            } else {
+                std::cerr << "Invalid BOOL value: " << v << "\n";
+                return false;
+            }
+            file.write(reinterpret_cast<const char*>(&byte_val), sizeof(byte_val));
+        } else if (type == TYPE_VARCHAR || type == TYPE_TEXT) {
             if (v.size() >= 2 && ((v.front() == '"' && v.back() == '"') || (v.front() == '\'' && v.back() == '\''))) {
                 v = v.substr(1, v.size() - 2);
             }
             v = trimCopy(v);
-            const int maxLen = (size > 0 ? size : 255);
+            const int maxLen = (type == TYPE_TEXT) ? 65535 : (size > 0 ? size : 255);
             if (static_cast<int>(v.size()) > maxLen) {
-                std::cerr << "VARCHAR too long (max " << maxLen << ")\n";
+                std::cerr << "Text too long (max " << maxLen << ")\n";
                 return false;
             }
             const int str_length = static_cast<int>(v.size());
@@ -444,6 +470,9 @@ bool StorageEngine::select_all(const std::string& table_path) {
     constexpr int TYPE_INT = 1;
     constexpr int TYPE_VARCHAR = 2;
     constexpr int TYPE_DATE = 3;
+    constexpr int TYPE_FLOAT = 4;
+    constexpr int TYPE_BOOL = 5;
+    constexpr int TYPE_TEXT = 6;
 
     std::vector<std::vector<std::string>> rows;
     rows.reserve(static_cast<size_t>(row_count));
@@ -459,7 +488,7 @@ bool StorageEngine::select_all(const std::string& table_path) {
         for (int c = 0; c < column_count; c++) {
             const auto& col = cols[static_cast<size_t>(c)];
             std::string cell;
-            if (col.type == TYPE_INT) {
+                       if (col.type == TYPE_INT) {
                 int v = 0;
                 file.read(reinterpret_cast<char*>(&v), sizeof(int));
                 cell = std::to_string(v);
@@ -470,7 +499,22 @@ bool StorageEngine::select_all(const std::string& table_path) {
                 const int month = (d / 100) % 100;
                 const int day = d % 100;
                 cell = std::to_string(year) + "-" + (month < 10 ? "0" : "") + std::to_string(month) + "-" + (day < 10 ? "0" : "") + std::to_string(day);
-            } else if (col.type == TYPE_VARCHAR) {
+            } else if (col.type == TYPE_FLOAT) {
+                double d = 0.0;
+                file.read(reinterpret_cast<char*>(&d), sizeof(double));
+                cell = std::to_string(d);
+                while (cell.size() > 1 && cell.find('.') != std::string::npos && (cell.back() == '0' || cell.back() == '.')) {
+                    if (cell.back() == '.') {
+                        cell.pop_back();
+                        break;
+                    }
+                    cell.pop_back();
+                }
+            } else if (col.type == TYPE_BOOL) {
+                uint8_t b = 0;
+                file.read(reinterpret_cast<char*>(&b), sizeof(uint8_t));
+                cell = (b != 0) ? "true" : "false";
+            } else if (col.type == TYPE_VARCHAR || col.type == TYPE_TEXT) {
                 int len = 0;
                 file.read(reinterpret_cast<char*>(&len), sizeof(int));
                 if (len < 0) return false;
@@ -483,6 +527,7 @@ bool StorageEngine::select_all(const std::string& table_path) {
                 std::cerr << "Unsupported column type\n";
                 return false;
             }
+
             widths[static_cast<size_t>(c)] = std::max(widths[static_cast<size_t>(c)], cell.size());
             row.push_back(std::move(cell));
         }
