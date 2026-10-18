@@ -333,7 +333,15 @@ bool StorageEngine::insert_row(const std::string& table_path, const std::vector<
         return false;
     }
 
-    struct ColInfo { int type; int size; };
+        struct ColInfo {
+        std::string name;
+        int raw_type;
+        int base_type;
+        int size;
+        bool is_pk;
+        bool is_not_null;
+        bool is_unique;
+    };
     std::vector<ColInfo> cols;
     cols.reserve(static_cast<size_t>(column_count));
 
@@ -341,15 +349,23 @@ bool StorageEngine::insert_row(const std::string& table_path, const std::vector<
         int name_length = 0;
         file.read(reinterpret_cast<char*>(&name_length), sizeof(int));
         if (name_length < 0) return false;
-        file.seekg(name_length, std::ios::cur);
+        std::string col_name(static_cast<size_t>(name_length), '\0');
+        if (name_length > 0) {
+            file.read(&col_name[0], name_length);
+        }
 
-        int type = 0, size = 0;
-        file.read(reinterpret_cast<char*>(&type), sizeof(int));
+        int raw_type = 0, size = 0;
+        file.read(reinterpret_cast<char*>(&raw_type), sizeof(int));
         file.read(reinterpret_cast<char*>(&size), sizeof(int));
-        cols.push_back({type, size});
+
+        int base_type = raw_type & 0xFF;
+        bool is_pk = (raw_type & (1 << 8)) != 0;
+        bool is_not_null = (raw_type & (1 << 9)) != 0;
+        bool is_unique = (raw_type & (1 << 10)) != 0;
+
+        cols.push_back({std::move(col_name), raw_type, base_type, size, is_pk, is_not_null, is_unique});
     }
 
-    file.seekp(0, std::ios::end);
     constexpr int TYPE_INT = 1;
     constexpr int TYPE_VARCHAR = 2;
     constexpr int TYPE_DATE = 3;
@@ -359,8 +375,90 @@ bool StorageEngine::insert_row(const std::string& table_path, const std::vector<
 
     for (int i = 0; i < column_count; i++) {
         std::string v = trimCopy(values[static_cast<size_t>(i)]);
-        const int type = cols[static_cast<size_t>(i)].type;
-        const int size = cols[static_cast<size_t>(i)].size;
+        const auto& col = cols[static_cast<size_t>(i)];
+        if ((col.is_not_null || col.is_pk) && (v.empty() || v == "NULL" || v == "null")) {
+            std::cerr << "Column '" << col.name << "' cannot be null\n";
+            return false;
+        }
+    }
+
+    bool has_unique_check = false;
+    for (const auto& col : cols) {
+        if (col.is_pk || col.is_unique) {
+            has_unique_check = true;
+            break;
+        }
+    }
+
+    if (has_unique_check && row_count > 0) {
+        std::streampos data_start = file.tellg();
+        for (int r = 0; r < row_count; r++) {
+            for (int c = 0; c < column_count; c++) {
+                const auto& col = cols[static_cast<size_t>(c)];
+                std::string cell;
+
+                if (col.base_type == TYPE_INT) {
+                    int val = 0;
+                    file.read(reinterpret_cast<char*>(&val), sizeof(int));
+                    cell = std::to_string(val);
+                } else if (col.base_type == TYPE_DATE) {
+                    int val = 0;
+                    file.read(reinterpret_cast<char*>(&val), sizeof(int));
+                    cell = std::to_string(val);
+                } else if (col.base_type == TYPE_FLOAT) {
+                    double val = 0.0;
+                    file.read(reinterpret_cast<char*>(&val), sizeof(double));
+                    cell = std::to_string(val);
+                } else if (col.base_type == TYPE_BOOL) {
+                    uint8_t val = 0;
+                    file.read(reinterpret_cast<char*>(&val), sizeof(uint8_t));
+                    cell = val ? "true" : "false";
+                } else if (col.base_type == TYPE_VARCHAR || col.base_type == TYPE_TEXT) {
+                    int len = 0;
+                    file.read(reinterpret_cast<char*>(&len), sizeof(int));
+                    if (len > 0) {
+                        cell.resize(static_cast<size_t>(len));
+                        file.read(&cell[0], len);
+                    }
+                }
+
+                if (col.is_pk || col.is_unique) {
+                    std::string new_val = trimCopy(values[static_cast<size_t>(c)]);
+                    if (new_val.size() >= 2 && ((new_val.front() == '"' && new_val.back() == '"') || (new_val.front() == '\'' && new_val.back() == '\''))) {
+                        new_val = new_val.substr(1, new_val.size() - 2);
+                    }
+                    if (col.base_type == TYPE_DATE) {
+                        int parsed_date = 0;
+                        if (parseDateToInt(new_val, parsed_date)) {
+                            new_val = std::to_string(parsed_date);
+                        }
+                    }
+                    if (col.base_type == TYPE_FLOAT) {
+                        try {
+                            double d1 = std::stod(cell);
+                            double d2 = std::stod(new_val);
+                            if (d1 == d2) {
+                                std::cerr << "Duplicate entry '" << new_val << "' for key '" << (col.is_pk ? "PRIMARY" : col.name) << "'\n";
+                                return false;
+                            }
+                        } catch (...) {}
+                    } else if (cell == new_val) {
+                        std::cerr << "Duplicate entry '" << new_val << "' for key '" << (col.is_pk ? "PRIMARY" : col.name) << "'\n";
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    file.clear();
+    file.seekp(0, std::ios::end);
+
+    for (int i = 0; i < column_count; i++) {
+        std::string v = trimCopy(values[static_cast<size_t>(i)]);
+        const auto& col = cols[static_cast<size_t>(i)];
+        const int type = col.base_type;
+        const int size = col.size;
 
         if (type == TYPE_INT) {
             int int_value = 0;
@@ -488,18 +586,20 @@ bool StorageEngine::select_all(const std::string& table_path) {
         for (int c = 0; c < column_count; c++) {
             const auto& col = cols[static_cast<size_t>(c)];
             std::string cell;
-                       if (col.type == TYPE_INT) {
+            const int base_type = col.type & 0xFF;
+
+            if (base_type == TYPE_INT) {
                 int v = 0;
                 file.read(reinterpret_cast<char*>(&v), sizeof(int));
                 cell = std::to_string(v);
-            } else if (col.type == TYPE_DATE) {
+            } else if (base_type == TYPE_DATE) {
                 int d = 0;
                 file.read(reinterpret_cast<char*>(&d), sizeof(int));
                 const int year = d / 10000;
                 const int month = (d / 100) % 100;
                 const int day = d % 100;
                 cell = std::to_string(year) + "-" + (month < 10 ? "0" : "") + std::to_string(month) + "-" + (day < 10 ? "0" : "") + std::to_string(day);
-            } else if (col.type == TYPE_FLOAT) {
+            } else if (base_type == TYPE_FLOAT) {
                 double d = 0.0;
                 file.read(reinterpret_cast<char*>(&d), sizeof(double));
                 cell = std::to_string(d);
@@ -510,11 +610,11 @@ bool StorageEngine::select_all(const std::string& table_path) {
                     }
                     cell.pop_back();
                 }
-            } else if (col.type == TYPE_BOOL) {
+            } else if (base_type == TYPE_BOOL) {
                 uint8_t b = 0;
                 file.read(reinterpret_cast<char*>(&b), sizeof(uint8_t));
                 cell = (b != 0) ? "true" : "false";
-            } else if (col.type == TYPE_VARCHAR || col.type == TYPE_TEXT) {
+            } else if (base_type == TYPE_VARCHAR || base_type == TYPE_TEXT) {
                 int len = 0;
                 file.read(reinterpret_cast<char*>(&len), sizeof(int));
                 if (len < 0) return false;

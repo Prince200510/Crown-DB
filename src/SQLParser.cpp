@@ -387,7 +387,7 @@ ParseResult parse(const std::string& sql) {
 				r.error = "Expected '('";
 				return r;
 			}
-						std::vector<ColumnDef> cols;
+			std::vector<ColumnDef> cols;
 			while (true) {
 				std::string colName;
 				if (!parseIdentifier(toks, pos, colName)) {
@@ -402,7 +402,7 @@ ParseResult parse(const std::string& sql) {
 					return r;
 				}
 
-				ColumnDef col;
+								ColumnDef col;
 				col.name = std::move(colName);
 				col.type = type;
 
@@ -431,6 +431,18 @@ ParseResult parse(const std::string& sql) {
 						continue;
 					}
 					break;
+				}
+
+				if (col.is_primary_key) {
+					col.type |= (1 << 8);
+				}
+				
+				if (col.is_not_null) {
+					col.type |= (1 << 9);
+				}
+
+				if (col.is_unique) {
+					col.type |= (1 << 10);
 				}
 
 				cols.push_back(std::move(col));
