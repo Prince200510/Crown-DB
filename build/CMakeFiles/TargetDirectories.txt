@@ -1,0 +1,5 @@
+P:/C++/crownDB/build/CMakeFiles/crowndb_core.dir
+P:/C++/crownDB/build/CMakeFiles/crowndb_cli.dir
+P:/C++/crownDB/build/CMakeFiles/crowndb_example.dir
+P:/C++/crownDB/build/CMakeFiles/edit_cache.dir
+P:/C++/crownDB/build/CMakeFiles/rebuild_cache.dir
