@@ -43,6 +43,8 @@ set(CORE_HEADERS
     include/Utils.h
     include/DatabaseError.h
     include/Types.h
+    include/ColumnMetadata.h
+    include/QueryResult.h
     lib/include/Crowndb.h
 )
 
