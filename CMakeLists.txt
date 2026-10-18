@@ -36,6 +36,7 @@ set(CORE_HEADERS
     include/StorageEngine.h
     include/SQLParser.h
     include/Session.h
+    include/SessionContext.h
     include/UserManager.h
     include/Database.h
     include/Table.h
