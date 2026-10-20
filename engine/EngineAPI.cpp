@@ -297,6 +297,24 @@ bool EngineAPI::group_aggregate(
     return ok;
 }
 
+bool EngineAPI::get_table_rows(const char* table_name, std::vector<std::string>& col_names, std::vector<std::vector<std::string>>& rows) {
+    last_error.clear();
+    if (current_database_name.empty()) {
+        last_error = "No database selected";
+        return false;
+    }
+
+    const std::string meta_path = "databases/" + current_database_name + ".db/db.meta";
+    StorageEngine storage;
+    if (!storage.validate_database_file(meta_path)) {
+        last_error = "Invalid or corrupted database";
+        return false;
+    }
+
+    const std::string table_path = "databases/" + current_database_name + ".db/" + std::string(table_name) + ".tbl";
+    return StorageEngine::get_table_data(table_path, col_names, rows);
+}
+
 bool EngineAPI::aggregate(
     const std::string& table_name,
     const std::string& column_name,

@@ -11,7 +11,6 @@ CMakeFiles/crowndb_core.dir/engine/DatabaseEngine.cpp.obj: P:/C++/crownDB/engine
   P:/C++/crownDB/include/Expression.h \
   P:/C++/crownDB/include/QueryResult.h \
   P:/C++/crownDB/include/SQLParser.h \
-  P:/C++/crownDB/include/Session.h \
   P:/C++/crownDB/include/SessionContext.h \
   P:/C++/crownDB/include/StorageEngine.h \
   P:/C++/crownDB/include/Types.h \
@@ -1304,6 +1303,10 @@ P:/C++/crownDB/include/DatabaseError.h:
 
 P:/C++/crownDB/include/QueryResult.h:
 
+P:/C++/crownDB/include/Expression.h:
+
+P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/move.h:
+
 P:/mysys2cpp/ucrt64/include/stdint.h:
 
 P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/nested_exception.h:
@@ -1314,17 +1317,9 @@ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/refwrap.h:
 
 P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/align.h:
 
-P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/move.h:
-
-P:/C++/crownDB/include/Expression.h:
-
 P:/C++/crownDB/include/StorageEngine.h:
 
 P:/C++/crownDB/include/SQLParser.h:
-
-P:/mysys2cpp/ucrt64/include/corecrt_wstdlib.h:
-
-P:/C++/crownDB/include/Session.h:
 
 P:/mysys2cpp/ucrt64/include/c++/15.1.0/bit:
 
@@ -1651,6 +1646,10 @@ P:/mysys2cpp/ucrt64/include/corecrt_startup.h:
 P:/mysys2cpp/ucrt64/include/corecrt_stdio_config.h:
 
 P:/mysys2cpp/ucrt64/include/corecrt_wctype.h:
+
+P:/C++/crownDB/include/Session.h:
+
+P:/mysys2cpp/ucrt64/include/corecrt_wstdlib.h:
 
 P:/mysys2cpp/ucrt64/include/crtdefs.h:
 

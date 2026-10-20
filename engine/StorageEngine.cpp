@@ -667,6 +667,109 @@ bool StorageEngine::select_all(const std::string& table_path) {
     return true;
 }
 
+bool StorageEngine::get_table_data(const std::string& table_path, std::vector<std::string>& col_names, std::vector<std::vector<std::string>>& rows) {
+    std::ifstream file(table_path, std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    char magic[8];
+    file.read(magic, 8);
+    if (file.gcount() != 8 || std::string(magic, 8) != "CROWNTBL") {
+        return false;
+    }
+
+    int column_count = 0;
+    int row_count = 0;
+    file.read(reinterpret_cast<char*>(&column_count), sizeof(int));
+    file.read(reinterpret_cast<char*>(&row_count), sizeof(int));
+    if (column_count <= 0) {
+        return false;
+    }
+
+    struct ColInfo { std::string name; int type; int size; };
+    std::vector<ColInfo> cols;
+    cols.reserve(static_cast<size_t>(column_count));
+    col_names.clear();
+    col_names.reserve(static_cast<size_t>(column_count));
+
+    for (int i = 0; i < column_count; i++) {
+        int name_length = 0;
+        file.read(reinterpret_cast<char*>(&name_length), sizeof(int));
+        if (name_length <= 0) return false;
+        std::string name(static_cast<size_t>(name_length), '\0');
+        file.read(&name[0], name_length);
+
+        int type = 0, size = 0;
+        file.read(reinterpret_cast<char*>(&type), sizeof(int));
+        file.read(reinterpret_cast<char*>(&size), sizeof(int));
+        cols.push_back({name, type, size});
+        col_names.push_back(name);
+    }
+
+    constexpr int TYPE_INT = 1;
+    constexpr int TYPE_VARCHAR = 2;
+    constexpr int TYPE_DATE = 3;
+    constexpr int TYPE_FLOAT = 4;
+    constexpr int TYPE_BOOL = 5;
+    constexpr int TYPE_TEXT = 6;
+
+    rows.clear();
+    rows.reserve(static_cast<size_t>(row_count));
+
+    for (int r = 0; r < row_count; r++) {
+        std::vector<std::string> row;
+        row.reserve(static_cast<size_t>(column_count));
+        for (int c = 0; c < column_count; c++) {
+            const auto& col = cols[static_cast<size_t>(c)];
+            std::string cell;
+            const int base_type = col.type & 0xFF;
+
+            if (base_type == TYPE_INT) {
+                int v = 0;
+                file.read(reinterpret_cast<char*>(&v), sizeof(int));
+                cell = std::to_string(v);
+            } else if (base_type == TYPE_DATE) {
+                int d = 0;
+                file.read(reinterpret_cast<char*>(&d), sizeof(int));
+                const int year = d / 10000;
+                const int month = (d / 100) % 100;
+                const int day = d % 100;
+                cell = std::to_string(year) + "-" + (month < 10 ? "0" : "") + std::to_string(month) + "-" + (day < 10 ? "0" : "") + std::to_string(day);
+            } else if (base_type == TYPE_FLOAT) {
+                double d = 0.0;
+                file.read(reinterpret_cast<char*>(&d), sizeof(double));
+                cell = std::to_string(d);
+                while (cell.size() > 1 && cell.find('.') != std::string::npos && (cell.back() == '0' || cell.back() == '.')) {
+                    if (cell.back() == '.') {
+                        cell.pop_back();
+                        break;
+                    }
+                    cell.pop_back();
+                }
+            } else if (base_type == TYPE_BOOL) {
+                uint8_t b = 0;
+                file.read(reinterpret_cast<char*>(&b), sizeof(uint8_t));
+                cell = (b != 0) ? "true" : "false";
+            } else if (base_type == TYPE_VARCHAR || base_type == TYPE_TEXT) {
+                int len = 0;
+                file.read(reinterpret_cast<char*>(&len), sizeof(int));
+                if (len < 0) return false;
+                std::string s(static_cast<size_t>(len), '\0');
+                if (len > 0) {
+                    file.read(&s[0], len);
+                }
+                cell = std::move(s);
+            } else {
+                return false;
+            }
+            row.push_back(std::move(cell));
+        }
+        rows.push_back(std::move(row));
+    }
+    return true;
+}
+
 bool StorageEngine::drop_table(const std::string& table_path) {
     if(!std::filesystem::exists(table_path)) {
         return false;
@@ -1975,6 +2078,9 @@ bool StorageEngine::aggregate_function(const std::string& table_path, const std:
     constexpr int TYPE_INT = 1;
     constexpr int TYPE_VARCHAR = 2;
     constexpr int TYPE_DATE = 3;
+    constexpr int TYPE_FLOAT = 4;
+    constexpr int TYPE_BOOL = 5;
+    constexpr int TYPE_TEXT = 6;
 
     if (count_star) {
         if (agg_type != Aggregate_type::COUNT) {
@@ -1982,21 +2088,18 @@ bool StorageEngine::aggregate_function(const std::string& table_path, const std:
             return false;
         }
     } else {
-        const int t = cols[static_cast<size_t>(targetIndex)].type;
+        const int t = cols[static_cast<size_t>(targetIndex)].type & 0xFF;
         if (agg_type == Aggregate_type::SUM || agg_type == Aggregate_type::AVG) {
-            if (t != TYPE_INT) {
-                std::cerr << "SUM/AVG supported only for INT columns\n";
+            if (t != TYPE_INT && t != TYPE_FLOAT) {
+                std::cerr << "SUM/AVG supported only for numeric columns\n";
                 return false;
             }
         }
         if (agg_type == Aggregate_type::MIN || agg_type == Aggregate_type::MAX) {
-            if (t != TYPE_INT && t != TYPE_DATE) {
-                std::cerr << "MIN/MAX supported only for INT/DATE columns\n";
+            if (t != TYPE_INT && t != TYPE_DATE && t != TYPE_FLOAT) {
+                std::cerr << "MIN/MAX supported only for INT/DATE/FLOAT columns\n";
                 return false;
             }
-        }
-        if (agg_type == Aggregate_type::COUNT) {
-            
         }
     }
 
@@ -2004,7 +2107,8 @@ bool StorageEngine::aggregate_function(const std::string& table_path, const std:
         result.count++;
         for (int c = 0; c < column_count; c++) {
             const auto& col = cols[static_cast<size_t>(c)];
-            if (col.type == TYPE_INT) {
+            const int base_t = col.type & 0xFF;
+            if (base_t == TYPE_INT) {
                 int v = 0;
                 file.read(reinterpret_cast<char*>(&v), sizeof(int));
                 if (!file) return false;
@@ -2023,7 +2127,29 @@ bool StorageEngine::aggregate_function(const std::string& table_path, const std:
                         }
                     }
                 }
-            } else if (col.type == TYPE_DATE) {
+            } else if (base_t == TYPE_FLOAT) {
+                double d = 0.0;
+                file.read(reinterpret_cast<char*>(&d), sizeof(double));
+                if (!file) return false;
+                if (!count_star && c == targetIndex) {
+                    if (agg_type == Aggregate_type::SUM || agg_type == Aggregate_type::AVG) {
+                        result.sum += d;
+                    }
+                    if (agg_type == Aggregate_type::MIN || agg_type == Aggregate_type::MAX) {
+                        if (!result.initialized) {
+                            result.min = result.max = d;
+                            result.initialized = true;
+                        } else {
+                            result.min = std::min(result.min, d);
+                            result.max = std::max(result.max, d);
+                        }
+                    }
+                }
+            } else if (base_t == TYPE_BOOL) {
+                uint8_t b = 0;
+                file.read(reinterpret_cast<char*>(&b), sizeof(uint8_t));
+                if (!file) return false;
+            } else if (base_t == TYPE_DATE) {
                 int d = 0;
                 file.read(reinterpret_cast<char*>(&d), sizeof(int));
                 if (!file) return false;
@@ -2039,7 +2165,7 @@ bool StorageEngine::aggregate_function(const std::string& table_path, const std:
                         }
                     }
                 }
-            } else if (col.type == TYPE_VARCHAR) {
+            } else if (base_t == TYPE_VARCHAR || base_t == TYPE_TEXT) {
                 int len = 0;
                 file.read(reinterpret_cast<char*>(&len), sizeof(int));
                 if (!file || len < 0) return false;

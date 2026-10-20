@@ -336,6 +336,30 @@ static std::shared_ptr<Expression> parsePrimaryExpression(const std::vector<Toke
 
 	if (toks[pos].type == TokenType::LParen) {
 		++pos;
+		if (pos < toks.size() && toks[pos].type == TokenType::SELECT) {
+			std::string sub_sql;
+			int depth = 1;
+			while (pos < toks.size()) {
+				if (toks[pos].type == TokenType::LParen) {
+					depth++;
+					sub_sql += "(";
+					pos++;
+				} else if (toks[pos].type == TokenType::RParen) {
+					depth--;
+					pos++;
+					if (depth == 0) break;
+					sub_sql += ")";
+				} else {
+					if (!sub_sql.empty() && sub_sql.back() != '(') {
+						sub_sql += " ";
+					}
+					sub_sql += toks[pos].text;
+					pos++;
+				}
+			}
+			return std::make_shared<SubqueryExpression>(std::move(sub_sql));
+		}
+
 		auto expr = parseExpressionPratt(toks, pos, 0);
 		if (!expect(toks, pos, TokenType::RParen)) return nullptr;
 		return expr;

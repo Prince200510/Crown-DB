@@ -28,6 +28,7 @@ class EngineAPI {
 	bool select_columns(const std::string& table_name, const std::vector<std::string>& columns, const Condition* cond = nullptr);
 	bool group_aggregate(const std::string& table_name, const std::vector<std::string>& group_columns, const std::string& aggregate_column, Aggregate_type agg_type, const Condition* cond = nullptr);
 	bool aggregate(const std::string& table_name, const std::string& column_name, Aggregate_type agg_type, Aggregate_result& out);
+    bool get_table_rows(const char* table_name, std::vector<std::string>& col_names, std::vector<std::vector<std::string>>& rows);
 };
 
 #endif

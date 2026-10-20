@@ -49,6 +49,7 @@ class StorageEngine {
 	static bool select_columns(const std::string& table_path, const std::vector<std::string>& columns, const Condition* cond = nullptr);
     static bool group_aggregate(const std::string& table_path, const std::vector<std::string>& group_columns, const std::string& aggregate_column, Aggregate_type agg_type, const Condition* cond = nullptr);
     static bool aggregate_function(const std::string& table_path, const std::string& column_name, Aggregate_type agg_type, Aggregate_result& result);
+    static bool get_table_data(const std::string& table_path, std::vector<std::string>& col_names, std::vector<std::vector<std::string>>& rows);
 };
 
 #endif

@@ -1,12 +1,39 @@
 #include "DatabaseEngine.h"
 #include "EngineAPI.h"
 #include "SQLParser.h"
-#include "Session.h"
+#include "SessionContext.h"
 #include "UserManager.h"
+#include "Expression.h"
 #include <iostream>
 #include <sstream>
+#include <iomanip>
+#include <algorithm>
 
 namespace {
+
+TypedValue string_to_typed_value(const std::string& str) {
+    if (str == "true" || str == "TRUE") return TypedValue(true);
+    if (str == "false" || str == "FALSE") return TypedValue(false);
+    if (str == "NULL" || str.empty()) return TypedValue::make_null();
+
+    try {
+        size_t idx = 0;
+        long long ll = std::stoll(str, &idx);
+        if (idx == str.size()) {
+            return TypedValue(static_cast<int64_t>(ll));
+        }
+    } catch (...) {}
+
+    try {
+        size_t idx = 0;
+        double d = std::stod(str, &idx);
+        if (idx == str.size()) {
+            return TypedValue(d);
+        }
+    } catch (...) {}
+
+    return TypedValue(str);
+}
 
 class DefaultDatabaseEngine : public DatabaseEngine {
 private:
@@ -141,46 +168,101 @@ public:
             return QueryResult::success(1);
         }
 
-                std::ostringstream out;
+        if (st.type == SQLParser::StatementType::SelectAll || 
+            st.type == SQLParser::StatementType::SelectWhere || 
+            st.type == SQLParser::StatementType::SelectColumns) {
+            
+            std::vector<std::string> col_names;
+            std::vector<std::vector<std::string>> all_rows;
+            if (!api_.get_table_rows(st.tableName.c_str(), col_names, all_rows)) {
+                return QueryResult::failure(ErrorCode::TableNotFound, "Select failed: Table not found or invalid schema");
+            }
+
+            std::shared_ptr<Expression> active_expr = st.whereExpr;
+            if (active_expr) {
+                if (auto bin = std::dynamic_pointer_cast<BinaryExpression>(active_expr)) {
+                    if (auto sub = std::dynamic_pointer_cast<SubqueryExpression>(bin->right())) {
+                        QueryResult sub_res = execute(session, sub->sql());
+                        if (sub_res.is_ok()) {
+                            std::string raw = sub_res.to_string();
+                            std::istringstream iss(raw);
+                            std::string line;
+                            std::string last_val;
+                            while (iss >> line) {
+                                if (!line.empty() && line != "NULL") last_val = line;
+                            }
+                            TypedValue sub_val = string_to_typed_value(last_val);
+                            active_expr = std::make_shared<BinaryExpression>(bin->op(), bin->left(), std::make_shared<ConstantExpression>(sub_val));
+                        }
+                    }
+                }
+            }
+
+            std::vector<std::vector<std::string>> matched_rows;
+            for (const auto& row : all_rows) {
+                bool matches = true;
+                if (active_expr) {
+                    std::vector<TypedValue> typed_row;
+                    typed_row.reserve(row.size());
+                    for (const auto& cell : row) {
+                        typed_row.push_back(string_to_typed_value(cell));
+                    }
+                    TypedValue tv = active_expr->evaluate(col_names, typed_row);
+                    if (tv.type() == DataType::Boolean) {
+                        matches = tv.get_boolean();
+                    } else if (tv.type() == DataType::Integer) {
+                        matches = tv.get_integer() != 0;
+                    } else {
+                        matches = false;
+                    }
+                } else if (!st.whereColumn.empty()) {
+                    auto it = std::find(col_names.begin(), col_names.end(), st.whereColumn);
+                    if (it != col_names.end()) {
+                        size_t idx = std::distance(col_names.begin(), it);
+                        if (idx < row.size()) {
+                            matches = evaluate_simple_condition(row[idx], st.whereOp, st.whereValue);
+                        } else {
+                            matches = false;
+                        }
+                    } else {
+                        matches = false;
+                    }
+                }
+
+                if (matches) {
+                    matched_rows.push_back(row);
+                }
+            }
+
+            if (st.type == SQLParser::StatementType::SelectColumns && !st.selectColumns.empty()) {
+                std::vector<size_t> col_indices;
+                for (const auto& sc : st.selectColumns) {
+                    auto it = std::find(col_names.begin(), col_names.end(), sc);
+                    if (it != col_names.end()) {
+                        col_indices.push_back(std::distance(col_names.begin(), it));
+                    }
+                }
+                std::vector<std::vector<std::string>> projected_rows;
+                for (const auto& r : matched_rows) {
+                    std::vector<std::string> proj;
+                    for (size_t ci : col_indices) {
+                        proj.push_back(ci < r.size() ? r[ci] : "");
+                    }
+                    projected_rows.push_back(proj);
+                }
+                return QueryResult::raw(format_table(st.selectColumns, projected_rows));
+            }
+
+            return QueryResult::raw(format_table(col_names, matched_rows));
+        }
+
+        std::ostringstream out;
         struct CoutGuard {
             std::ostream& os;
             std::streambuf* old;
             explicit CoutGuard(std::ostream& os, std::streambuf* next) : os(os), old(os.rdbuf(next)) {}
             ~CoutGuard() { os.rdbuf(old); }
         } guard(std::cout, out.rdbuf());
-
-        if (st.type == SQLParser::StatementType::SelectAll) {
-            if (!api_.select_all(st.tableName)) {
-                return QueryResult::failure(ErrorCode::TableNotFound, "Select failed: Table not found or invalid schema");
-            }
-            return QueryResult::raw(out.str());
-        }
-
-        if (st.type == SQLParser::StatementType::SelectWhere) {
-            Condition cond;
-            cond.column_name = st.whereColumn;
-            cond.op = st.whereOp;
-            cond.value = st.whereValue;
-            if (!api_.select_where(st.tableName, cond)) {
-                return QueryResult::failure(ErrorCode::TableNotFound, "Select failed");
-            }
-            return QueryResult::raw(out.str());
-        }
-
-        if (st.type == SQLParser::StatementType::SelectColumns) {
-            const Condition* condPtr = nullptr;
-            Condition cond;
-            if (!st.whereColumn.empty()) {
-                cond.column_name = st.whereColumn;
-                cond.op = st.whereOp;
-                cond.value = st.whereValue;
-                condPtr = &cond;
-            }
-            if (!api_.select_columns(st.tableName, st.selectColumns, condPtr)) {
-                return QueryResult::failure(ErrorCode::TableNotFound, "Select failed");
-            }
-            return QueryResult::raw(out.str());
-        }
 
         if (st.type == SQLParser::StatementType::SelectAggregate) {
             Aggregate_result agg;
@@ -219,7 +301,75 @@ public:
 
         return QueryResult::failure(ErrorCode::SyntaxError, "Unsupported SQL statement");
     }
+
+private:
+    bool evaluate_simple_condition(const std::string& field_val, const std::string& op, const std::string& target_val) {
+        try {
+            double n1 = std::stod(field_val);
+            double n2 = std::stod(target_val);
+            if (op == "=" || op == "==") return n1 == n2;
+            if (op == "!=") return n1 != n2;
+            if (op == "<") return n1 < n2;
+            if (op == "<=") return n1 <= n2;
+            if (op == ">") return n1 > n2;
+            if (op == ">=") return n1 >= n2;
+        } catch (...) {
+            if (op == "=" || op == "==") return field_val == target_val;
+            if (op == "!=") return field_val != target_val;
+            if (op == "<") return field_val < target_val;
+            if (op == "<=") return field_val <= target_val;
+            if (op == ">") return field_val > target_val;
+            if (op == ">=") return field_val >= target_val;
+        }
+        return false;
+    }
+
+    std::string format_table(const std::vector<std::string>& headers, const std::vector<std::vector<std::string>>& rows) {
+        if (headers.empty()) {
+            return "Empty set\n";
+        }
+
+        std::vector<size_t> widths(headers.size(), 0);
+        for (size_t i = 0; i < headers.size(); ++i) {
+            widths[i] = std::max(widths[i], headers[i].size());
+        }
+        for (const auto& r : rows) {
+            for (size_t i = 0; i < headers.size() && i < r.size(); ++i) {
+                widths[i] = std::max(widths[i], r[i].size());
+            }
+        }
+
+        std::ostringstream oss;
+        auto print_sep = [&]() {
+            oss << "+";
+            for (size_t w : widths) {
+                oss << std::string(w + 2, '-') << "+";
+            }
+            oss << "\n";
+        };
+
+        print_sep();
+        oss << "|";
+        for (size_t i = 0; i < headers.size(); ++i) {
+            oss << " " << std::left << std::setw(static_cast<int>(widths[i])) << headers[i] << " |";
+        }
+        oss << "\n";
+        print_sep();
+
+        for (const auto& r : rows) {
+            oss << "|";
+            for (size_t i = 0; i < headers.size(); ++i) {
+                std::string v = (i < r.size()) ? r[i] : "";
+                oss << " " << std::left << std::setw(static_cast<int>(widths[i])) << v << " |";
+            }
+            oss << "\n";
+        }
+        print_sep();
+        oss << rows.size() << " row(s) in set\n";
+        return oss.str();
+    }
 };
+
 }
 
 std::unique_ptr<DatabaseEngine> DatabaseEngine::create() {

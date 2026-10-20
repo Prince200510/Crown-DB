@@ -188,4 +188,20 @@ public:
     }
 };
 
+class SubqueryExpression : public Expression {
+private:
+    std::string subquery_sql_;
+
+public:
+    explicit SubqueryExpression(std::string sql) : subquery_sql_(std::move(sql)) {}
+
+    const std::string& sql() const {
+        return subquery_sql_;
+    }
+
+    TypedValue evaluate(const std::vector<std::string>&, const std::vector<TypedValue>&) const override {
+        return TypedValue::make_null();
+    }
+};
+
 #endif
