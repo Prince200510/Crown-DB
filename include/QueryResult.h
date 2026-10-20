@@ -94,7 +94,7 @@ public:
         }
 
         std::vector<size_t> widths(col_count, 0);
-        for (size_t i = 0; i < col_count; ++i) {
+        for (size_t i = 0; i < col_count; ) {
             widths[i] = columns_[i].name().size();
         }
 
@@ -104,7 +104,7 @@ public:
         for (const auto& row : rows_) {
             std::vector<std::string> row_strs;
             row_strs.reserve(col_count);
-            for (size_t i = 0; i < col_count; ++i) {
+            for (size_t i = 0; i < col_count; i++) {
                 std::string cell = (i < row.size()) ? row[i].to_string() : "NULL";
                 if (cell.size() > widths[i]) {
                     widths[i] = cell.size();
@@ -127,7 +127,7 @@ public:
         print_border();
 
         out << "|";
-        for (size_t i = 0; i < col_count; ++i) {
+        for (size_t i = 0; i < col_count; i++) {
             out << " " << std::left << std::setw(static_cast<int>(widths[i])) << columns_[i].name() << " |";
         }
         out << "\n";
@@ -136,7 +136,7 @@ public:
 
         for (const auto& row_str : cell_strings) {
             out << "|";
-            for (size_t i = 0; i < col_count; ++i) {
+            for (size_t i = 0; i < col_count; i++) {
                 out << " " << std::left << std::setw(static_cast<int>(widths[i])) << row_str[i] << " |";
             }
             out << "\n";

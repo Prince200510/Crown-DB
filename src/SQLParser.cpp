@@ -129,17 +129,17 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 	while (i < sql.size()) {
 		unsigned char ch = static_cast<unsigned char>(sql[i]);
 		if (std::isspace(ch)) {
-			++i;
+			i++;
 			continue;
 		}
 
 		if (std::isalpha(ch) || ch == '_') {
 			size_t start = i;
-			++i;
+			i++;
 			while (i < sql.size()) {
 				unsigned char c = static_cast<unsigned char>(sql[i]);
 				if (!(std::isalnum(c) || c == '_')) break;
-				++i;
+				i++;
 			}
 			std::string ident = sql.substr(start, i - start);
 			const TokenType kw = keywordToTokenType(upper(ident));
@@ -149,11 +149,11 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 
 				if (std::isdigit(ch)) {
 			size_t start = i;
-			++i;
-			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
+			i++;
+			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) i++;
 			if (i < sql.size() && sql[i] == '.' && i + 1 < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i + 1]))) {
-				++i;
-				while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
+				i++;
+				while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) i++;
 			}
 			push(TokenType::Number, sql.substr(start, i - start));
 			continue;
@@ -162,7 +162,7 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 		if (ch == '.' && i + 1 < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i + 1]))) {
 			size_t start = i;
 			i += 2;
-			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) ++i;
+			while (i < sql.size() && std::isdigit(static_cast<unsigned char>(sql[i]))) i++;
 			push(TokenType::Number, sql.substr(start, i - start));
 			continue;
 		}
@@ -170,35 +170,43 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 
 		if (sql[i] == '\'' || sql[i] == '"') {
 			const char quote = sql[i];
-			++i;
+			i++;
 			std::string value;
 			while (i < sql.size()) {
 				char c = sql[i];
 				if (c == quote) {
-					++i;
+					i++;
 					break;
 				}
 				value.push_back(c);
-				++i;
+				i++;
 			}
 			push(TokenType::String, value);
 			continue;
 		}
 
 		switch (sql[i]) {
-			case '*': push(TokenType::Star, "*"); ++i; break;
-			case ',': push(TokenType::Comma, ","); ++i; break;
-			case '(': push(TokenType::LParen, "("); ++i; break;
-			case ')': push(TokenType::RParen, ")"); ++i; break;
-			case ';': push(TokenType::Semicolon, ";"); ++i; break;
-			case '-': push(TokenType::Dash, "-"); ++i; break;
-			case '.': push(TokenType::DOT, "."); ++i; break;
-			case '=': push(TokenType::EQ, "="); ++i; break;
+			case '*': push(TokenType::Star, "*"); i++; break;
+			case ',': push(TokenType::Comma, ","); i++; break;
+			case '(': push(TokenType::LParen, "("); i++; break;
+			case ')': push(TokenType::RParen, ")"); i++; break;
+			case ';': push(TokenType::Semicolon, ";"); i++; break;
+			case '-': push(TokenType::Dash, "-"); i++; break;
+			case '.': push(TokenType::DOT, "."); i++; break;
+			case '=':
+				if (i + 1 < sql.size() && sql[i + 1] == '=') {
+					push(TokenType::EQ, "=");
+					i += 2;
+				} else {
+					push(TokenType::EQ, "=");
+					i++;
+				}
+				break;
 			case '>':
 				if (i + 1 < sql.size() && sql[i + 1] == '=') { 
 					push(TokenType::GE, ">="); i += 2; 
 				} else { 
-					push(TokenType::GT, ">"); ++i; 
+					push(TokenType::GT, ">"); i++; 
 				}
 				break;
 			case '<':
@@ -206,7 +214,7 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 					push(TokenType::LE, "<="); 
 					i += 2; 
 				} else { 
-					push(TokenType::LT, "<"); ++i; 
+					push(TokenType::LT, "<"); i++; 
 				}
 				break;
 			case '!':

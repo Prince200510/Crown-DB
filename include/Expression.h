@@ -52,7 +52,7 @@ public:
     }
 
     TypedValue evaluate(const std::vector<std::string>& col_names, const std::vector<TypedValue>& row) const override {
-        for (size_t i = 0; i < col_names.size(); ++i) {
+        for (size_t i = 0; i < col_names.size(); i++) {
             if (col_names[i] == col_name_) {
                 if (i < row.size()) return row[i];
                 break;

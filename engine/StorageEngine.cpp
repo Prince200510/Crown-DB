@@ -972,6 +972,16 @@ static bool compareString(const std::string& a, const std::string& op, const std
 	return false;
 }
 
+static bool compareFloat(double a, const std::string& op, double b) {
+	if (op == "=") return a == b;
+	if (op == "!=") return a != b;
+	if (op == ">") return a > b;
+	if (op == "<") return a < b;
+	if (op == ">=") return a >= b;
+	if (op == "<=") return a <= b;
+	return false;
+}
+
 bool StorageEngine::select_where(
     const std::string& tablePath,
     const Condition& cond
@@ -1068,30 +1078,43 @@ bool StorageEngine::select_where(
     }
 
     const Column& whereCol = cols[static_cast<size_t>(whereIndex)];
+    const int whereBaseType = whereCol.type & 0xFF;
     std::string whereValueRaw = trimCopy(cond.value);
+  
     if (whereValueRaw.size() >= 2 && ((whereValueRaw.front() == '\'' && whereValueRaw.back() == '\'') || (whereValueRaw.front() == '"' && whereValueRaw.back() == '"'))) {
         whereValueRaw = whereValueRaw.substr(1, whereValueRaw.size() - 2);
         whereValueRaw = trimCopy(whereValueRaw);
     }
 
     int whereInt = 0;
+    double whereDouble = 0.0;
     std::string whereStr;
-    bool whereIsInt = false;
-    if (whereCol.type == TYPE_INT) {
+
+    if (whereBaseType == TYPE_INT) {
         if (!parseIntStrict(whereValueRaw, whereInt)) {
             std::cerr << "Invalid INT in WHERE\n";
             return false;
         }
-        whereIsInt = true;
-    } else if (whereCol.type == TYPE_DATE) {
+    } else if (whereBaseType == TYPE_DATE) {
         if (!parseDateToInt(whereValueRaw, whereInt)) {
             std::cerr << "Invalid DATE in WHERE\n";
             return false;
         }
-        whereIsInt = true;
-    } else if (whereCol.type == TYPE_VARCHAR) {
+    } else if (whereBaseType == TYPE_FLOAT) {
+        try {
+            whereDouble = std::stod(whereValueRaw);
+        } catch (...) {
+            std::cerr << "Invalid FLOAT in WHERE\n";
+            return false;
+        }
+    } else if (whereBaseType == TYPE_BOOL) {
+        if (whereValueRaw == "1" || whereValueRaw == "true" || whereValueRaw == "TRUE") {
+            whereInt = 1;
+        } else {
+            whereInt = 0;
+        }
+    } else if (whereBaseType == TYPE_VARCHAR || whereBaseType == TYPE_TEXT) {
         whereStr = whereValueRaw;
-        whereIsInt = false;
     } else {
         return false;
     }
@@ -1100,6 +1123,7 @@ bool StorageEngine::select_where(
     rows.reserve(static_cast<size_t>(rowCount));
     std::vector<size_t> widths;
     widths.reserve(static_cast<size_t>(colCount));
+    
     for (int i = 0; i < colCount; i++) {
         widths.push_back(cols[static_cast<size_t>(i)].name.size());
     }
@@ -1109,27 +1133,57 @@ bool StorageEngine::select_where(
         std::vector<std::string> row;
         row.reserve(static_cast<size_t>(colCount));
         bool isMatch = false;
+
         for (int c = 0; c < colCount; c++) {
             const auto& col = cols[static_cast<size_t>(c)];
+            const int base_type = col.type & 0xFF;
             std::string cell;
-            if (col.type == TYPE_INT) {
+
+            if (base_type == TYPE_INT) {
                 int v = 0;
                 file.read(reinterpret_cast<char*>(&v), sizeof(int));
                 cell = std::to_string(v);
-                if (c == whereIndex && whereIsInt) {
+                
+                if (c == whereIndex && whereBaseType == TYPE_INT) {
                     isMatch = compareInt(v, cond.op, whereInt);
                 }
-            } else if (col.type == TYPE_DATE) {
+
+            } else if (base_type == TYPE_DATE) {
                 int d = 0;
                 file.read(reinterpret_cast<char*>(&d), sizeof(int));
                 const int year = d / 10000;
                 const int month = (d / 100) % 100;
                 const int day = d % 100;
                 cell = std::to_string(year) + "-" + (month < 10 ? "0" : "") + std::to_string(month) + "-" + (day < 10 ? "0" : "") + std::to_string(day);
-                if (c == whereIndex && whereIsInt) {
+                
+                if (c == whereIndex && whereBaseType == TYPE_DATE) {
                     isMatch = compareInt(d, cond.op, whereInt);
                 }
-            } else if (col.type == TYPE_VARCHAR) {
+
+            } else if (base_type == TYPE_FLOAT) {
+                double val = 0.0;
+                file.read(reinterpret_cast<char*>(&val), sizeof(double));
+                cell = std::to_string(val);
+                
+                while (cell.size() > 1 && cell.find('.') != std::string::npos && (cell.back() == '0' || cell.back() == '.')) {
+                    if (cell.back() == '.') {
+                        cell.pop_back();
+                        break;
+                    }
+                    cell.pop_back();
+                }
+
+                if (c == whereIndex && whereBaseType == TYPE_FLOAT) {
+                    isMatch = compareFloat(val, cond.op, whereDouble);
+                }
+            } else if (base_type == TYPE_BOOL) {
+                uint8_t b = 0;
+                file.read(reinterpret_cast<char*>(&b), sizeof(uint8_t));
+                cell = (b != 0) ? "true" : "false";
+                if (c == whereIndex && whereBaseType == TYPE_BOOL) {
+                    isMatch = (b == whereInt);
+                }
+            } else if (base_type == TYPE_VARCHAR || base_type == TYPE_TEXT) {
                 int len = 0;
                 file.read(reinterpret_cast<char*>(&len), sizeof(int));
                 if (len < 0) return false;
@@ -1138,18 +1192,20 @@ bool StorageEngine::select_where(
                     file.read(&s[0], len);
                 }
                 cell = std::move(s);
-                if (c == whereIndex && !whereIsInt) {
+                if (c == whereIndex && (whereBaseType == TYPE_VARCHAR || whereBaseType == TYPE_TEXT)) {
                     isMatch = compareString(cell, cond.op, whereStr);
                 }
             } else {
                 return false;
             }
+
             widths[static_cast<size_t>(c)] = std::max(widths[static_cast<size_t>(c)], cell.size());
             row.push_back(std::move(cell));
         }
+
         if (isMatch) {
-            rows.push_back(std::move(row));
             matched++;
+            rows.push_back(std::move(row));
         }
     }
 
