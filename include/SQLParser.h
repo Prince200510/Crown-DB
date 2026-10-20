@@ -1,12 +1,12 @@
 #ifndef SQL_PARSER_H
 #define SQL_PARSER_H
-
+#include "Expression.h"
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace SQLParser {
-
 enum class StatementType {
 	Unknown,
 	CreateDatabase,
@@ -53,6 +53,7 @@ struct Statement {
 	std::string whereColumn;
 	std::string whereOp;
 	std::string whereValue;
+	std::shared_ptr<Expression> whereExpr;
 	std::vector<ColumnDef> columns;
 	std::vector<std::string> values;
 };

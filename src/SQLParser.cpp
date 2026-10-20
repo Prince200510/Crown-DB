@@ -49,6 +49,9 @@ enum class TokenType {
 	NOT,
 	NULL_VAL,
 	UNIQUE,
+	AND,
+	OR,
+	DOT,
 	EQ,
 	NE,
 	LT,
@@ -83,41 +86,43 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 	};
 
 	auto keywordToTokenType = [&](const std::string& upperIdent) -> TokenType {
-		if (upperIdent == "CREATE") return TokenType::CREATE;
-		if (upperIdent == "DATABASE") return TokenType::DATABASE;
-		if (upperIdent == "DROP") return TokenType::DROP;
-		if (upperIdent == "TABLE") return TokenType::TABLE;
-		if (upperIdent == "USE") return TokenType::USE;
-		if (upperIdent == "INSERT") return TokenType::INSERT;
-		if (upperIdent == "FLOAT") return TokenType::FLOAT;
-		if (upperIdent == "DOUBLE") return TokenType::DOUBLE;
-		if (upperIdent == "REAL") return TokenType::FLOAT;
-		if (upperIdent == "BOOL") return TokenType::BOOL;
-		if (upperIdent == "BOOLEAN") return TokenType::BOOL;
-		if (upperIdent == "TEXT") return TokenType::TEXT;
-		if (upperIdent == "INTEGER") return TokenType::INT;
-		if (upperIdent == "PRIMARY") return TokenType::PRIMARY;
-		if (upperIdent == "KEY") return TokenType::KEY;
-		if (upperIdent == "NOT") return TokenType::NOT;
-		if (upperIdent == "NULL") return TokenType::NULL_VAL;
-		if (upperIdent == "UNIQUE") return TokenType::UNIQUE;
-		if (upperIdent == "INTO") return TokenType::INTO;
-		if (upperIdent == "VALUES") return TokenType::VALUES;
-		if (upperIdent == "SELECT") return TokenType::SELECT;
-		if (upperIdent == "FROM") return TokenType::FROM;
-		if (upperIdent == "TRUNCATE") return TokenType::TRUNCATE;
-		if (upperIdent == "ALTER") return TokenType::ALTER;
-		if (upperIdent == "ADD") return TokenType::ADD;
-		if (upperIdent == "COLUMN") return TokenType::COLUMN;
-		if (upperIdent == "INT") return TokenType::INT;
-		if (upperIdent == "VARCHAR") return TokenType::VARCHAR;
-		if (upperIdent == "DATE") return TokenType::DATE;
-		if (upperIdent == "WHERE") return TokenType::WHERE;
-		if (upperIdent == "COUNT") return TokenType::COUNT;
-		if (upperIdent == "SUM") return TokenType::SUM;
-		if (upperIdent == "AVG") return TokenType::AVG;
-		if (upperIdent == "MIN") return TokenType::MIN;
-		if (upperIdent == "MAX") return TokenType::MAX;
+		if(upperIdent == "CREATE") return TokenType::CREATE;
+		if(upperIdent == "DATABASE") return TokenType::DATABASE;
+		if(upperIdent == "DROP") return TokenType::DROP;
+		if(upperIdent == "TABLE") return TokenType::TABLE;
+		if(upperIdent == "USE") return TokenType::USE;
+		if(upperIdent == "INSERT") return TokenType::INSERT;
+		if(upperIdent == "FLOAT") return TokenType::FLOAT;
+		if(upperIdent == "DOUBLE") return TokenType::DOUBLE;
+		if(upperIdent == "REAL") return TokenType::FLOAT;
+		if(upperIdent == "BOOL") return TokenType::BOOL;
+		if(upperIdent == "BOOLEAN") return TokenType::BOOL;
+		if(upperIdent == "TEXT") return TokenType::TEXT;
+		if(upperIdent == "INTEGER") return TokenType::INT;
+		if(upperIdent == "PRIMARY") return TokenType::PRIMARY;
+		if(upperIdent == "KEY") return TokenType::KEY;
+		if(upperIdent == "NOT") return TokenType::NOT;
+		if(upperIdent == "NULL") return TokenType::NULL_VAL;
+		if(upperIdent == "UNIQUE") return TokenType::UNIQUE;
+		if(upperIdent == "INTO") return TokenType::INTO;
+		if(upperIdent == "VALUES") return TokenType::VALUES;
+		if(upperIdent == "SELECT") return TokenType::SELECT;
+		if(upperIdent == "FROM") return TokenType::FROM;
+		if(upperIdent == "TRUNCATE") return TokenType::TRUNCATE;
+		if(upperIdent == "ALTER") return TokenType::ALTER;
+		if(upperIdent == "ADD") return TokenType::ADD;
+		if(upperIdent == "COLUMN") return TokenType::COLUMN;
+		if(upperIdent == "INT") return TokenType::INT;
+		if(upperIdent == "VARCHAR") return TokenType::VARCHAR;
+		if(upperIdent == "DATE") return TokenType::DATE;
+		if(upperIdent == "WHERE") return TokenType::WHERE;
+		if(upperIdent == "COUNT") return TokenType::COUNT;
+		if(upperIdent == "SUM") return TokenType::SUM;
+		if(upperIdent == "AVG") return TokenType::AVG;
+		if(upperIdent == "MIN") return TokenType::MIN;
+		if(upperIdent == "MAX") return TokenType::MAX;
+		if(upperIdent == "AND") return TokenType::AND;
+		if(upperIdent == "OR") return TokenType::OR;
 		return TokenType::Identifier;
 	};
 
@@ -187,19 +192,31 @@ static std::vector<Token> tokenize(const std::string& sql, std::string& error) {
 			case ')': push(TokenType::RParen, ")"); ++i; break;
 			case ';': push(TokenType::Semicolon, ";"); ++i; break;
 			case '-': push(TokenType::Dash, "-"); ++i; break;
-				case '=': push(TokenType::EQ, "="); ++i; break;
-				case '>':
-					if (i + 1 < sql.size() && sql[i + 1] == '=') { push(TokenType::GE, ">="); i += 2; }
-					else { push(TokenType::GT, ">"); ++i; }
-					break;
-				case '<':
-					if (i + 1 < sql.size() && sql[i + 1] == '=') { push(TokenType::LE, "<="); i += 2; }
-					else { push(TokenType::LT, "<"); ++i; }
-					break;
-				case '!':
-					if (i + 1 < sql.size() && sql[i + 1] == '=') { push(TokenType::NE, "!="); i += 2; break; }
-					error = "Unexpected character in SQL";
-					return {};
+			case '.': push(TokenType::DOT, "."); ++i; break;
+			case '=': push(TokenType::EQ, "="); ++i; break;
+			case '>':
+				if (i + 1 < sql.size() && sql[i + 1] == '=') { 
+					push(TokenType::GE, ">="); i += 2; 
+				} else { 
+					push(TokenType::GT, ">"); ++i; 
+				}
+				break;
+			case '<':
+				if (i + 1 < sql.size() && sql[i + 1] == '=') { 
+					push(TokenType::LE, "<="); 
+					i += 2; 
+				} else { 
+					push(TokenType::LT, "<"); ++i; 
+				}
+				break;
+			case '!':
+				if (i + 1 < sql.size() && sql[i + 1] == '=') { 
+					push(TokenType::NE, "!="); 
+					i += 2; 
+					break; 
+				}
+				error = "Unexpected character in SQL";
+				return {};
 			default:
 				error = "Unexpected character in SQL";
 				return {};
@@ -270,6 +287,114 @@ static bool parseTypeSpec(const std::vector<Token>& toks, size_t& pos, int& outT
 		return true;
 	}
 	return false;
+}
+
+static int getBinaryPrecedence(TokenType type) {
+	switch (type) {
+		case TokenType::OR: return 1;
+		case TokenType::AND: return 2;
+		case TokenType::EQ:
+		case TokenType::NE:
+		case TokenType::LT:
+		case TokenType::LE:
+		case TokenType::GT:
+		case TokenType::GE:
+			return 4;
+		case TokenType::Star:
+			return 6;
+		default:
+			return 0;
+	}
+}
+
+static OpType tokenToOpType(TokenType type) {
+	switch (type) {
+		case TokenType::OR: return OpType::Or;
+		case TokenType::AND: return OpType::And;
+		case TokenType::EQ: return OpType::Equal;
+		case TokenType::NE: return OpType::NotEqual;
+		case TokenType::LT: return OpType::LessThan;
+		case TokenType::LE: return OpType::LessEqual;
+		case TokenType::GT: return OpType::GreaterThan;
+		case TokenType::GE: return OpType::GreaterEqual;
+		default: return OpType::Equal;
+	}
+}
+
+static std::shared_ptr<Expression> parseExpressionPratt(const std::vector<Token>& toks, size_t& pos, int min_prec = 0);
+
+static std::shared_ptr<Expression> parsePrimaryExpression(const std::vector<Token>& toks, size_t& pos) {
+	if (pos >= toks.size()) return nullptr;
+
+	if (toks[pos].type == TokenType::LParen) {
+		++pos;
+		auto expr = parseExpressionPratt(toks, pos, 0);
+		if (!expect(toks, pos, TokenType::RParen)) return nullptr;
+		return expr;
+	}
+
+	if (toks[pos].type == TokenType::NOT) {
+		++pos;
+		auto sub = parsePrimaryExpression(toks, pos);
+		if (!sub) return nullptr;
+		return std::make_shared<UnaryExpression>(OpType::Not, std::move(sub));
+	}
+
+	if (toks[pos].type == TokenType::Number) {
+		std::string s = toks[pos].text;
+		++pos;
+		if (s.find('.') != std::string::npos) {
+			return std::make_shared<ConstantExpression>(TypedValue(std::stod(s)));
+		}
+		return std::make_shared<ConstantExpression>(TypedValue(static_cast<int64_t>(std::stoll(s))));
+	}
+
+	if (toks[pos].type == TokenType::String) {
+		std::string s = toks[pos].text;
+		++pos;
+		return std::make_shared<ConstantExpression>(TypedValue(std::move(s)));
+	}
+
+	if (toks[pos].type == TokenType::NULL_VAL) {
+		++pos;
+		return std::make_shared<ConstantExpression>(TypedValue::make_null());
+	}
+
+	if (toks[pos].type == TokenType::Identifier || toks[pos].type == TokenType::BOOL) {
+		std::string name = toks[pos].text;
+		++pos;
+		std::string upper_name = upper(name);
+		if (upper_name == "TRUE") {
+			return std::make_shared<ConstantExpression>(TypedValue(true));
+		}
+		if (upper_name == "FALSE") {
+			return std::make_shared<ConstantExpression>(TypedValue(false));
+		}
+		return std::make_shared<ColumnRefExpression>(std::move(name));
+	}
+
+	return nullptr;
+}
+
+static std::shared_ptr<Expression> parseExpressionPratt(const std::vector<Token>& toks, size_t& pos, int min_prec) {
+	auto left = parsePrimaryExpression(toks, pos);
+	if (!left) return nullptr;
+
+	while (pos < toks.size()) {
+		int prec = getBinaryPrecedence(toks[pos].type);
+		if (prec <= min_prec) break;
+
+		TokenType opTok = toks[pos].type;
+		OpType op = tokenToOpType(opTok);
+		++pos;
+
+		auto right = parseExpressionPratt(toks, pos, prec);
+		if (!right) return nullptr;
+
+		left = std::make_shared<BinaryExpression>(op, std::move(left), std::move(right));
+	}
+
+	return left;
 }
 
 static bool parseValue(const std::vector<Token>& toks, size_t& pos, std::string& out) {
@@ -402,7 +527,7 @@ ParseResult parse(const std::string& sql) {
 					return r;
 				}
 
-								ColumnDef col;
+				ColumnDef col;
 				col.name = std::move(colName);
 				col.type = type;
 
@@ -664,43 +789,38 @@ ParseResult parse(const std::string& sql) {
 				r.error = "Expected table name";
 				return r;
 			}
-			if (toks[pos].type == TokenType::WHERE) {
+									if (toks[pos].type == TokenType::WHERE) {
 				++pos;
-				std::string col;
-				if (!parseIdentifier(toks, pos, col)) {
+				auto expr = parseExpressionPratt(toks, pos, 0);
+				if (!expr) {
 					r.ok = false;
-					r.error = "Expected column name";
+					r.error = "Invalid WHERE clause";
 					return r;
 				}
-				std::string op;
-				switch (toks[pos].type) {
-					case TokenType::EQ: op = "="; break;
-					case TokenType::NE: op = "!="; break;
-					case TokenType::LT: op = "<"; break;
-					case TokenType::LE: op = "<="; break;
-					case TokenType::GT: op = ">"; break;
-					case TokenType::GE: op = ">="; break;
-					default:
-						r.ok = false;
-						r.error = "Expected comparison operator";
-						return r;
-				}
-				++pos;
-				std::string v;
-				if (!parseValue(toks, pos, v)) {
-					r.ok = false;
-					r.error = "Invalid value";
-					return r;
+				r.statement.whereExpr = expr;
+
+				if (auto bin = std::dynamic_pointer_cast<BinaryExpression>(expr)) {
+					if (auto col = std::dynamic_pointer_cast<ColumnRefExpression>(bin->left())) {
+						if (auto c = std::dynamic_pointer_cast<ConstantExpression>(bin->right())) {
+							r.statement.whereColumn = col->col_name();
+							switch (bin->op()) {
+								case OpType::Equal: r.statement.whereOp = "="; break;
+								case OpType::NotEqual: r.statement.whereOp = "!="; break;
+								case OpType::LessThan: r.statement.whereOp = "<"; break;
+								case OpType::LessEqual: r.statement.whereOp = "<="; break;
+								case OpType::GreaterThan: r.statement.whereOp = ">"; break;
+								case OpType::GreaterEqual: r.statement.whereOp = ">="; break;
+								default: break;
+							}
+							r.statement.whereValue = c->evaluate({}, {}).to_string();
+						}
+					}
 				}
 				r.statement.type = StatementType::SelectWhere;
-				r.statement.tableName = table;
-				r.statement.whereColumn = col;
-				r.statement.whereOp = op;
-				r.statement.whereValue = v;
-				r.ok = true;
-				return r;
+			} else {
+				r.statement.type = StatementType::SelectAll;
 			}
-			r.statement.type = StatementType::SelectAll;
+
 			r.statement.tableName = table;
 			r.ok = true;
 			return r;
@@ -785,37 +905,34 @@ ParseResult parse(const std::string& sql) {
 			r.error = "Expected table name";
 			return r;
 		}
+		
 		if (toks[pos].type == TokenType::WHERE) {
 			++pos;
-			std::string col;
-			if (!parseIdentifier(toks, pos, col)) {
+			auto expr = parseExpressionPratt(toks, pos, 0);
+			if (!expr) {
 				r.ok = false;
-				r.error = "Expected column name";
+				r.error = "Invalid WHERE clause";
 				return r;
 			}
-			std::string op;
-			switch (toks[pos].type) {
-				case TokenType::EQ: op = "="; break;
-				case TokenType::NE: op = "!="; break;
-				case TokenType::LT: op = "<"; break;
-				case TokenType::LE: op = "<="; break;
-				case TokenType::GT: op = ">"; break;
-				case TokenType::GE: op = ">="; break;
-				default:
-					r.ok = false;
-					r.error = "Expected comparison operator";
-					return r;
+			r.statement.whereExpr = expr;
+
+			if (auto bin = std::dynamic_pointer_cast<BinaryExpression>(expr)) {
+				if (auto col = std::dynamic_pointer_cast<ColumnRefExpression>(bin->left())) {
+					if (auto c = std::dynamic_pointer_cast<ConstantExpression>(bin->right())) {
+						r.statement.whereColumn = col->col_name();
+						switch (bin->op()) {
+							case OpType::Equal: r.statement.whereOp = "="; break;
+							case OpType::NotEqual: r.statement.whereOp = "!="; break;
+							case OpType::LessThan: r.statement.whereOp = "<"; break;
+							case OpType::LessEqual: r.statement.whereOp = "<="; break;
+							case OpType::GreaterThan: r.statement.whereOp = ">"; break;
+							case OpType::GreaterEqual: r.statement.whereOp = ">="; break;
+							default: break;
+						}
+						r.statement.whereValue = c->evaluate({}, {}).to_string();
+					}
+				}
 			}
-			++pos;
-			std::string v;
-			if (!parseValue(toks, pos, v)) {
-				r.ok = false;
-				r.error = "Invalid value";
-				return r;
-			}
-			r.statement.whereColumn = col;
-			r.statement.whereOp = op;
-			r.statement.whereValue = v;
 		}
 
 		r.statement.tableName = table;

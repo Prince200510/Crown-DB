@@ -1,23 +1,30 @@
 CMakeFiles/crowndb_core.dir/src/SQLParser.cpp.obj: \
  P:\C++\crownDB\src\SQLParser.cpp P:/C++/crownDB/include/SQLParser.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/string \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/requires_hosted.h \
+ P:/C++/crownDB/include/Expression.h P:/C++/crownDB/include/Types.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/cstdint \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/c++config.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/os_defines.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/cpu_defines.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/pstl/pstl_config.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stringfwd.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/memoryfwd.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/char_traits.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/postypes.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/cwchar \
- P:/mysys2cpp/ucrt64/include/wchar.h \
+ P:/mysys2cpp/ucrt64/lib/gcc/x86_64-w64-mingw32/15.1.0/include/stdint.h \
+ P:/mysys2cpp/ucrt64/include/stdint.h \
+ P:/mysys2cpp/ucrt64/include/crtdefs.h \
  P:/mysys2cpp/ucrt64/include/corecrt.h \
  P:/mysys2cpp/ucrt64/include/_mingw.h \
  P:/mysys2cpp/ucrt64/include/_mingw_mac.h \
  P:/mysys2cpp/ucrt64/include/_mingw_secapi.h \
  P:/mysys2cpp/ucrt64/include/vadefs.h \
  P:/mysys2cpp/ucrt64/include/sdks/_mingw_ddk.h \
+ P:/mysys2cpp/ucrt64/lib/gcc/x86_64-w64-mingw32/15.1.0/include/stddef.h \
+ P:/mysys2cpp/ucrt64/include/stddef.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/string \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/requires_hosted.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stringfwd.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/memoryfwd.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/char_traits.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/postypes.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/cwchar \
+ P:/mysys2cpp/ucrt64/include/wchar.h \
  P:/mysys2cpp/ucrt64/include/corecrt_stdio_config.h \
  P:/mysys2cpp/ucrt64/include/corecrt_wstdlib.h \
  P:/mysys2cpp/ucrt64/include/corecrt_wctype.h \
@@ -39,9 +46,7 @@ CMakeFiles/crowndb_core.dir/src/SQLParser.cpp.obj: \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/localefwd.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/c++locale.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/clocale \
- P:/mysys2cpp/ucrt64/include/locale.h \
- P:/mysys2cpp/ucrt64/include/crtdefs.h \
- P:/mysys2cpp/ucrt64/include/stdio.h \
+ P:/mysys2cpp/ucrt64/include/locale.h P:/mysys2cpp/ucrt64/include/stdio.h \
  P:/mysys2cpp/ucrt64/include/sec_api/stdio_s.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/iosfwd \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/cctype \
@@ -95,15 +100,62 @@ CMakeFiles/crowndb_core.dir/src/SQLParser.cpp.obj: \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/basic_string.tcc \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/memory_resource.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/cstddef \
- P:/mysys2cpp/ucrt64/lib/gcc/x86_64-w64-mingw32/15.1.0/include/stddef.h \
- P:/mysys2cpp/ucrt64/include/stddef.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/uses_allocator.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/uses_allocator_args.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/tuple \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/utility \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_relops.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/variant \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/enable_special_members.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/monostate.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/parse_numbers.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/ext/aligned_buffer.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/vector \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_uninitialized.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_vector.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_bvector.h \
- P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/vector.tcc
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/vector.tcc \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/algorithm \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_algo.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/algorithmfwd.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_heap.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/uniform_int_dist.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_tempbuf.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/pstl/glue_algorithm_defs.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/pstl/execution_defs.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/memory \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_raw_storage_iter.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/align.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/unique_ptr.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/shared_ptr.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/shared_ptr_base.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/typeinfo \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/allocated_ptr.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/ext/atomicity.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/gthr.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/gthr-default.h \
+ P:/mysys2cpp/ucrt64/include/pthread.h \
+ P:/mysys2cpp/ucrt64/include/sys/types.h \
+ P:/mysys2cpp/ucrt64/include/process.h \
+ P:/mysys2cpp/ucrt64/include/corecrt_startup.h \
+ P:/mysys2cpp/ucrt64/include/signal.h \
+ P:/mysys2cpp/ucrt64/include/pthread_signal.h \
+ P:/mysys2cpp/ucrt64/include/time.h \
+ P:/mysys2cpp/ucrt64/include/sys/timeb.h \
+ P:/mysys2cpp/ucrt64/include/sec_api/sys/timeb_s.h \
+ P:/mysys2cpp/ucrt64/include/_timeval.h \
+ P:/mysys2cpp/ucrt64/include/pthread_time.h \
+ P:/mysys2cpp/ucrt64/include/pthread_compat.h \
+ P:/mysys2cpp/ucrt64/include/sched.h \
+ P:/mysys2cpp/ucrt64/include/pthread_unistd.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/x86_64-w64-mingw32/bits/atomic_word.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/ext/concurrence.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/exception \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/exception_ptr.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/cxxabi_init_exception.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/nested_exception.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/shared_ptr_atomic.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/atomic_base.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/atomic_lockfree_defines.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/backward/auto_ptr.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/pstl/glue_memory_defs.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/utility \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_relops.h

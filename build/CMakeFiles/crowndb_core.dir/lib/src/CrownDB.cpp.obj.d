@@ -151,6 +151,17 @@ CMakeFiles/crowndb_core.dir/lib/src/CrownDB.cpp.obj: \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/cstdint \
  P:/mysys2cpp/ucrt64/lib/gcc/x86_64-w64-mingw32/15.1.0/include/stdint.h \
  P:/mysys2cpp/ucrt64/include/stdint.h P:/C++/crownDB/include/SQLParser.h \
+ P:/C++/crownDB/include/Expression.h P:/C++/crownDB/include/Types.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/variant \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/enable_special_members.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/monostate.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/parse_numbers.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/algorithm \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_algo.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/algorithmfwd.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/stl_heap.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/bits/uniform_int_dist.h \
+ P:/mysys2cpp/ucrt64/include/c++/15.1.0/pstl/glue_algorithm_defs.h \
  P:/C++/crownDB/include/Session.h P:/C++/crownDB/include/UserManager.h \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/iostream \
  P:/mysys2cpp/ucrt64/include/c++/15.1.0/ostream \

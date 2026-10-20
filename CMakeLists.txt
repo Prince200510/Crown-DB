@@ -31,7 +31,6 @@ set(CORE_SOURCES
     engine/DatabaseEngine.cpp
     lib/src/CrownDB.cpp
 )
-
 set(CORE_HEADERS
     include/EngineAPI.h
     include/StorageEngine.h
@@ -48,8 +47,10 @@ set(CORE_HEADERS
     include/ColumnMetadata.h
     include/QueryResult.h
     include/DatabaseEngine.h
+    include/Expression.h
     lib/include/Crowndb.h
 )
+
 
 add_library(crowndb_core STATIC ${CORE_SOURCES} ${CORE_HEADERS})
 
